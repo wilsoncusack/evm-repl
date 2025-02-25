@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: gas-playground
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
