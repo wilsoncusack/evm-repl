@@ -68,6 +68,18 @@ static CHAIN_RPC_URLS: Lazy<HashMap<u64, String>> = Lazy::new(|| {
         map.insert(10, rpc);
     }
 
+    if let Ok(rpc) = env::var("POLYGON_RPC") {
+        map.insert(137, rpc);
+    }
+
+    if let Ok(rpc) = env::var("BNB_RPC") {
+        map.insert(56, rpc);
+    }
+
+    if let Ok(rpc) = env::var("AVALANCHE_RPC") {
+        map.insert(43114, rpc);
+    }
+
     map
 });
 

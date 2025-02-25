@@ -2,7 +2,7 @@ use crate::gas::{execute_calldatas_fork, ExecutionResult, ForkCall, ForkConfig};
 use alloy_primitives::Address;
 use alloy_primitives::Bytes;
 use rocket::{post, response::status, serde::json::Json};
-use serde::{Deserialize};
+use serde::Deserialize;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
