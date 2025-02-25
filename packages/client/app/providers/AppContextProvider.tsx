@@ -7,9 +7,11 @@ import type {
   ExecutionResponse,
   FileFunctionCalls,
   FileId,
+  ForkConfig,
   FunctionCall,
   FunctionCallResult,
   SolidityFile,
+  ChainOption,
 } from "../types";
 import {
   type Address,
@@ -23,6 +25,17 @@ import {
 import axios from "axios";
 import { useDebounce } from "../hooks/useDebounce";
 import { extractFileName, replacer } from "../utils";
+
+// Add a shared networks configuration that can be used throughout the app
+export const SUPPORTED_NETWORKS: ChainOption[] = [
+  { id: 8453, name: "Base" },
+  { id: 1, name: "Ethereum" },
+  { id: 42161, name: "Arbitrum" },
+  { id: 10, name: "Optimism" },
+  { id: 137, name: "Polygon" },
+  { id: 56, name: "BNB Chain" },
+  { id: 43114, name: "Avalanche" },
+];
 
 export const AppProvider: React.FC<{
   initialFiles: SolidityFile[];
@@ -41,6 +54,11 @@ export const AppProvider: React.FC<{
   const [isCompiling, setIsCompiling] = useState(false);
   const [currentFileFunctionCallResults, setCurrentFileFunctionCallResults] =
     useState<FunctionCallResult[] | undefined>(undefined);
+  const [forkConfig, setForkConfig] = useState<ForkConfig>({
+    chainId: 8453, // Default to Base
+  });
+  const [availableChains, setAvailableChains] =
+    useState<ChainOption[]>(SUPPORTED_NETWORKS);
 
   const currentFile = useMemo(() => {
     return files.find((f) => f.id === currentFileId);
@@ -136,14 +154,27 @@ export const AppProvider: React.FC<{
     }
 
     try {
+      console.log("Sending fork config:", {
+        rpcUrl: forkConfig.rpcUrl,
+        chainId: forkConfig.chainId,
+        blockNumber: forkConfig.blockNumber,
+      });
+
       const response = await axios.post<ExecutionResponse[]>(
         `${process.env.NEXT_PUBLIC_SERVER}/execute_calldatas_fork`,
         {
           bytecode,
           calls: encodedCalls,
           address: currentFile.address,
+          forkConfig: {
+            rpcUrl: forkConfig.rpcUrl,
+            chainId: forkConfig.chainId,
+            blockNumber: forkConfig.blockNumber,
+          },
         },
       );
+
+      console.log("Response received:", response.data);
       const results = response.data;
 
       const output: FunctionCallResult[] = results.map((result, i) => {
@@ -193,7 +224,12 @@ export const AppProvider: React.FC<{
     } catch (error) {
       console.error("Execution error:", error);
     }
-  }, [currentFile, filesFunctionCalls, currentFileCompilationResult]);
+  }, [
+    currentFile,
+    filesFunctionCalls,
+    currentFileCompilationResult,
+    forkConfig,
+  ]);
 
   const addNewContract = useCallback((newFile: SolidityFile) => {
     setFiles((prevFiles) => [...prevFiles, newFile]);
@@ -218,6 +254,7 @@ export const AppProvider: React.FC<{
     currentFile,
     filesFunctionCalls,
     debouncedRefreshFunctionCallResult,
+    forkConfig,
   ]);
 
   const value = {
@@ -234,6 +271,10 @@ export const AppProvider: React.FC<{
     currentFileFunctionCallResults,
     clearCurrentFileFunctionCallResults,
     addNewContract,
+    forkConfig,
+    setForkConfig,
+    availableChains,
+    setAvailableChains,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -4,6 +4,7 @@
 import React, { useMemo } from "react";
 import { useAppContext } from "../hooks/useAppContext";
 import FunctionCallItem from "./FunctionCallItem";
+import ForkConfigPanel from "./ForkConfigPanel";
 
 const FunctionCallsPanel: React.FC = () => {
   const {
@@ -11,6 +12,8 @@ const FunctionCallsPanel: React.FC = () => {
     filesFunctionCalls,
     setFilesFunctionCalls,
     currentFileFunctionCallResults,
+    forkConfig,
+    availableChains,
   } = useAppContext();
 
   const functionCalls = useMemo(() => {
@@ -26,22 +29,27 @@ const FunctionCallsPanel: React.FC = () => {
     }));
   };
 
+  // Determine which chain we're using for display purposes
+  const chainName = useMemo(() => {
+    if (forkConfig.rpcUrl) return "Custom RPC";
+    const chain = availableChains.find((c) => c.id === forkConfig.chainId);
+    return chain?.name || "Base";
+  }, [forkConfig, availableChains]);
+
   return (
     <div className="flex flex-col h-full border-l border-gray-200">
       <div className="p-4 bg-white border-b border-gray-200">
         <h2 className="text-xl font-bold">Function Calls</h2>
         <p className="text-gray-800 italic">
-          State forked from{" "}
-          <a
-            className="underline"
-            target="_blank"
-            href="https://basescan.org/"
-            rel="noreferrer"
-          >
-            Base.
-          </a>
+          State forked from <span className="font-semibold">{chainName}</span>
+          {forkConfig.blockNumber
+            ? ` at block ${forkConfig.blockNumber}`
+            : " (latest)"}
         </p>
       </div>
+
+      <ForkConfigPanel />
+
       <div className="flex-grow overflow-y-auto p-4">
         <div className="space-y-4">
           {functionCalls.map((call, index) => (

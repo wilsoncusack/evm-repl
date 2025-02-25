@@ -1,4 +1,6 @@
 use dotenv::dotenv;
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
 use std::env;
 
 use alloy::providers::{Provider, ProviderBuilder};
@@ -23,6 +25,14 @@ pub struct Call {
     pub caller: Address,
 }
 
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ForkConfig {
+    pub rpc_url: Option<String>,
+    pub chain_id: Option<u64>,
+    pub block_number: Option<u64>,
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutionResult {
@@ -34,21 +44,99 @@ pub struct ExecutionResult {
     pub traces: CallTraceArena,
 }
 
+// Define a static mapping of chain IDs to RPC URLs loaded from environment variables
+static CHAIN_RPC_URLS: Lazy<HashMap<u64, String>> = Lazy::new(|| {
+    let mut map = HashMap::new();
+
+    // Add Base (8453)
+    if let Ok(rpc) = env::var("BASE_RPC") {
+        map.insert(8453, rpc);
+    }
+
+    // Add Ethereum (1)
+    if let Ok(rpc) = env::var("ETH_RPC") {
+        map.insert(1, rpc);
+    }
+
+    // Add Arbitrum (42161)
+    if let Ok(rpc) = env::var("ARBITRUM_RPC") {
+        map.insert(42161, rpc);
+    }
+
+    // Add Optimism (10)
+    if let Ok(rpc) = env::var("OPTIMISM_RPC") {
+        map.insert(10, rpc);
+    }
+
+    map
+});
+
 pub async fn execute_calldatas_fork(
     deployed_bytes: Bytes,
     address: Address,
     calls: Vec<Call>,
+    fork_config: Option<ForkConfig>,
 ) -> Result<Vec<ExecutionResult>, eyre::Error> {
     dotenv().ok();
-    let rpc =
-        env::var("BASE_RPC").map_err(|_| eyre::eyre!("BASE_RPC environment variable not set"))?;
+
+    // Debug log the fork config
+    println!("Fork config: {:?}", fork_config);
+
+    // Get RPC URL from fork config or environment variable
+    let rpc = match &fork_config {
+        // If custom RPC URL is provided, use it
+        Some(config) if config.rpc_url.is_some() => {
+            let url = config.rpc_url.clone().unwrap();
+            println!("Using custom RPC URL: {}", url);
+            url
+        }
+        // If chain ID is provided, look up the RPC URL from our mapping
+        Some(config) if config.chain_id.is_some() => {
+            let chain_id = config.chain_id.unwrap();
+            println!("Looking up RPC URL for chain ID: {}", chain_id);
+            let url = CHAIN_RPC_URLS
+                .get(&chain_id)
+                .cloned()
+                .ok_or_else(|| eyre::eyre!("No RPC URL configured for chain ID {}", chain_id))?;
+            println!("Found RPC URL: {}", url);
+            url
+        }
+        // Default to BASE_RPC
+        _ => {
+            let url = env::var("BASE_RPC")
+                .map_err(|_| eyre::eyre!("BASE_RPC environment variable not set"))?;
+            println!("Using default RPC URL: {}", url);
+            url
+        }
+    };
+
     let rpc_url = rpc.parse()?;
     let provider = ProviderBuilder::new().on_http(rpc_url);
-    let (_fork_gas_price, rpc_chain_id, block) = tokio::try_join!(
+
+    // Determine block ID based on fork config
+    let block_id = match &fork_config {
+        Some(config) if config.block_number.is_some() => {
+            BlockId::Number(config.block_number.unwrap().into())
+        }
+        _ => BlockId::latest(),
+    };
+
+    // Debug log the block ID
+    println!("Using block ID: {:?}", block_id);
+
+    let (_fork_gas_price, mut rpc_chain_id, block) = tokio::try_join!(
         provider.get_gas_price(),
         provider.get_chain_id(),
-        provider.get_block(BlockId::latest(), BlockTransactionsKind::Hashes)
+        provider.get_block(block_id, BlockTransactionsKind::Hashes)
     )?;
+
+    // Override chain ID if specified in fork config
+    if let Some(config) = &fork_config {
+        if let Some(chain_id) = config.chain_id {
+            rpc_chain_id = chain_id;
+        }
+    }
+
     let cfg = CfgEnv::default().with_chain_id(rpc_chain_id);
 
     let block = if let Some(block) = block {
@@ -56,6 +144,10 @@ pub async fn execute_calldatas_fork(
     } else {
         Err(eyre::eyre!("block not found"))?
     };
+
+    // After getting the block
+    println!("Block number: {:?}", block.header.number);
+
     let block_env = BlockEnv {
         number: U256::from(block.header.number.expect("block number not found")),
         timestamp: U256::from(block.header.timestamp),
@@ -78,8 +170,13 @@ pub async fn execute_calldatas_fork(
     };
     let opts = EvmOpts {
         fork_url: Some(rpc),
+        fork_block_number: fork_config.as_ref().and_then(|c| c.block_number),
         ..Default::default()
     };
+    println!(
+        "EVM options - fork URL: {:?}, fork block number: {:?}",
+        opts.fork_url, opts.fork_block_number
+    );
     let backend = backend::Backend::spawn(opts.get_fork(&Config::default(), opts.evm_env().await?));
     let mut executor = ExecutorBuilder::new()
         .inspectors(|stack| stack.trace_mode(forge::traces::TraceMode::Call).logs(true))
@@ -94,6 +191,9 @@ pub async fn execute_calldatas_fork(
             ..Default::default()
         },
     );
+
+    // After setting rpc_chain_id
+    println!("Using chain ID: {}", rpc_chain_id);
 
     calls
         .into_iter()
@@ -143,9 +243,10 @@ mod tests {
         };
 
         // Execute the calls
-        let results = execute_calldatas_fork(bytecode, address, vec![store_call, retrieve_call])
-            .await
-            .unwrap();
+        let results =
+            execute_calldatas_fork(bytecode, address, vec![store_call, retrieve_call], None)
+                .await
+                .unwrap();
 
         for (i, result) in results.iter().enumerate() {
             println!("Call {}", i);

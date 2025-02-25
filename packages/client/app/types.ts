@@ -124,3 +124,15 @@ export type ExecutionResponse = {
   logs: Log[];
   traces: FunctionCallResult["traces"];
 };
+
+export interface ForkConfig {
+  rpcUrl?: string;
+  chainId?: number;
+  blockNumber?: number;
+}
+
+export interface ChainOption {
+  id: number;
+  name: string;
+  rpcUrl?: string;
+}
