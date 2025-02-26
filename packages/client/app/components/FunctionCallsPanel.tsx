@@ -6,6 +6,7 @@ import { useAppContext } from "../hooks/useAppContext";
 import FunctionCallItem from "./FunctionCallItem";
 import ForkConfigPanel from "./ForkConfigPanel";
 import { Chain } from "viem";
+import { ChainOption } from "../types";
 
 const FunctionCallsPanel: React.FC = () => {
   const {
@@ -35,7 +36,7 @@ const FunctionCallsPanel: React.FC = () => {
     if (!forkConfig) return "Base"; // Default fallback
     if (forkConfig.rpcUrl) return "Custom RPC";
     const chain = availableChains.find(
-      (c: Chain) => c.id === forkConfig.chainId,
+      (c: ChainOption) => c.id === forkConfig.chainId,
     );
     return chain?.name || "Base";
   }, [forkConfig, availableChains]);
