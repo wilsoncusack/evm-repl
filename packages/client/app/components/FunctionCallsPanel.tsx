@@ -42,10 +42,10 @@ const FunctionCallsPanel: React.FC = () => {
   }, [forkConfig, availableChains]);
 
   return (
-    <div className="flex flex-col h-full border-l border-gray-200">
-      <div className="p-4 bg-white border-b border-gray-200">
-        <h2 className="text-xl font-bold">Function Calls</h2>
-        <p className="text-gray-800 italic">
+    <div className="flex flex-col h-full border-l border-color-panel">
+      <div className="p-4 bg-panel-header border-b border-color-panel">
+        <h2 className="text-xl font-bold text-primary">Function Calls</h2>
+        <p className="text-secondary italic">
           State forked from <span className="font-semibold">{chainName}</span>
           {forkConfig?.blockNumber
             ? ` at block ${forkConfig.blockNumber}`
@@ -55,7 +55,7 @@ const FunctionCallsPanel: React.FC = () => {
 
       <ForkConfigPanel />
 
-      <div className="flex-grow overflow-y-auto p-4">
+      <div className="flex-grow overflow-y-auto p-4 bg-panel-body">
         <div className="space-y-4">
           {functionCalls.map((call, index) => (
             <FunctionCallItem
@@ -72,9 +72,9 @@ const FunctionCallsPanel: React.FC = () => {
           ))}
         </div>
       </div>
-      <div className="p-4 bg-white border-t border-gray-200">
+      <div className="p-4 bg-panel-footer border-t border-color-panel">
         <button
-          className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-150 ease-in-out"
+          className="w-full px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent focus:ring-opacity-50 transition duration-150 ease-in-out"
           onClick={addFunctionCall}
         >
           Add Function Call

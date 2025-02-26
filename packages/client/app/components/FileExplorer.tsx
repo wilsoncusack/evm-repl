@@ -84,16 +84,16 @@ const FileExplorer: React.FC = () => {
   }
 
   return (
-    <div className="w-64 bg-gray-800 text-white h-full flex flex-col">
-      <div className="p-4 border-b border-gray-700">
+    <div className="w-64 bg-sidebar text-sidebar-text h-full flex flex-col">
+      <div className="p-4 border-b border-sidebar-border">
         <h3 className="font-bold text-xl">Files</h3>
       </div>
       <ul className="flex-grow overflow-y-auto">
         {files.map((file) => (
           <li
             key={file.id}
-            className={`cursor-pointer p-3 hover:bg-gray-700 transition-colors ${
-              file.id === currentFile?.id ? "bg-gray-700" : ""
+            className={`cursor-pointer p-3 hover:bg-sidebar-hover transition-colors ${
+              file.id === currentFile?.id ? "bg-sidebar-active" : ""
             }`}
           >
             {editingFileId === file.id ? (
@@ -103,7 +103,7 @@ const FileExplorer: React.FC = () => {
                 onChange={(e) => setEditingFileName(e.target.value)}
                 onBlur={() => saveFileName(file.id)}
                 onKeyDown={(e) => handleKeyDown(e, file.id)}
-                className="w-full bg-gray-600 text-white px-1 py-0.5 rounded"
+                className="w-full bg-sidebar-input text-primary px-1 py-0.5 rounded focus:outline-none focus:ring-2 focus:ring-accent"
                 autoFocus
               />
             ) : (
@@ -116,20 +116,22 @@ const FileExplorer: React.FC = () => {
                   {file.name}
                 </span>
                 {file.address && (
-                  <span className="text-xs text-gray-500 ml-2">
+                  <span className="text-xs text-tertiary ml-2">
                     {file.address.slice(0, 6)}...
                   </span>
                 )}
                 <div className="min-w-[50px]">
                   <button
                     onClick={() => startEditing(file.id, file.name)}
-                    className="text-gray-400 hover:text-white mr-2"
+                    className="text-tertiary hover:text-primary mr-2 transition-colors"
+                    aria-label="Edit filename"
                   >
                     ✎
                   </button>
                   <button
                     onClick={() => deleteFile(file.id)}
-                    className="text-red-400 hover:text-red-600"
+                    className="text-error hover:text-error-hover transition-colors"
+                    aria-label="Delete file"
                   >
                     🗑️
                   </button>
@@ -142,14 +144,14 @@ const FileExplorer: React.FC = () => {
       <div className="flex flex-col m-4 space-y-2">
         <button
           type="button"
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors"
+          className="bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-opacity-50"
           onClick={onAddFile}
         >
           Add File
         </button>
         <button
           type="button"
-          className="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded transition-colors"
+          className="bg-accent-secondary hover:bg-accent-secondary-hover text-white px-4 py-2 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-accent-secondary focus:ring-opacity-50"
           onClick={() => setIsLoadContractsModalOpen(true)}
         >
           Load Contracts

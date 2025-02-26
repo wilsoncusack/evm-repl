@@ -58,39 +58,37 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
   const isReverted = hasReverted();
 
   return (
-    <div className="p-4 bg-gray-50 border-t border-gray-200 space-y-3">
+    <div className="p-4 bg-result border-t border-color-card space-y-3">
       <div className="flex items-baseline">
-        <span className="text-sm font-semibold text-gray-600 w-20">
+        <span className="text-sm font-semibold text-secondary w-20">
           {isReverted ? "Reverted:" : "Returned:"}
         </span>
         {!isReverted ? (
-          <span className="font-mono text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded">
+          <span className="font-mono text-sm text-success bg-success-bg px-2 py-1 rounded">
             {result.response}
           </span>
         ) : (
-          <span className="font-mono text-sm text-red-600 bg-red-50 px-2 py-1 rounded">
+          <span className="font-mono text-sm text-error bg-error-bg px-2 py-1 rounded">
             {getRevertReason()}
           </span>
         )}
       </div>
 
       <div className="flex items-baseline">
-        <span className="text-sm font-semibold text-gray-600 w-20">
+        <span className="text-sm font-semibold text-secondary w-20">
           Gas used:
         </span>
-        <span className="font-mono text-sm text-green-600">
-          {result.gasUsed}
-        </span>
+        <span className="font-mono text-sm text-success">{result.gasUsed}</span>
       </div>
 
       <div className="space-y-1">
-        <span className="text-sm font-semibold text-gray-600">Logs:</span>
+        <span className="text-sm font-semibold text-secondary">Logs:</span>
         {result.logs?.map((log, i) => (
-          <div key={i} className="ml-5 p-2 bg-yellow-50 rounded-md">
-            <span className="font-mono text-sm text-yellow-700">
+          <div key={i} className="ml-5 p-2 bg-warning-bg rounded-md">
+            <span className="font-mono text-sm text-warning">
               {log.eventName}
             </span>
-            <span className="font-mono text-xs text-yellow-600">
+            <span className="font-mono text-xs text-warning-secondary">
               (
               {Array.isArray(log.args)
                 ? log.args.join(", ")
@@ -106,8 +104,8 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
 
         {!result.logs &&
           result.rawLogs.map((log, i) => (
-            <div key={i} className="ml-5 p-2 bg-yellow-50 rounded-md">
-              <span className="font-mono text-sm text-yellow-700">
+            <div key={i} className="ml-5 p-2 bg-warning-bg rounded-md">
+              <span className="font-mono text-sm text-warning">
                 <p>address: {log.address}</p>
                 <p>topics: {log.topics}</p>
                 <p>data: {log.data}</p>
@@ -120,7 +118,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
           <button
             type="button"
             onClick={() => setShowTraces(!showTraces)}
-            className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            className="px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors"
           >
             {showTraces ? "Hide Traces" : "Show Traces"}
           </button>

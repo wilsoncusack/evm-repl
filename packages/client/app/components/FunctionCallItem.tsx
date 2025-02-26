@@ -116,11 +116,11 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
   };
 
   return (
-    <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-      <div className="flex items-center p-2 bg-gray-50">
+    <div className="bg-card shadow-sm rounded-lg overflow-hidden border border-color-card">
+      <div className="flex items-center p-2 bg-card-header">
         <div className="flex-grow relative">
           <textarea
-            className="w-full p-2 bg-white text-gray-800 resize-none focus:outline-none font-mono border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+            className="w-full p-2 bg-input text-primary resize-none focus:outline-none font-mono border border-color-input rounded-md focus:ring-2 focus:ring-accent focus:border-accent transition-colors duration-200"
             value={call.rawInput}
             onChange={(e) => handleFunctionCallsChange(e.target.value, index)}
             rows={1}
@@ -133,8 +133,9 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
         </div>
         <button
           type="button"
-          className="ml-2 p-1 text-red-500 hover:bg-red-100 rounded"
+          className="ml-2 p-1 text-error hover:bg-error-hover rounded transition-colors"
           onClick={handleDelete}
+          aria-label="Delete function call"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -150,7 +151,7 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
           </svg>
         </button>
       </div>
-      {error && <div className="p-2 text-red-500 text-sm">{error}</div>}
+      {error && <div className="p-2 text-error text-sm">{error}</div>}
       {result && <ResultDisplay result={result} />}
     </div>
   );
