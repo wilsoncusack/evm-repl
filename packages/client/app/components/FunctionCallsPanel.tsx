@@ -5,6 +5,8 @@ import React, { useMemo } from "react";
 import { useAppContext } from "../hooks/useAppContext";
 import FunctionCallItem from "./FunctionCallItem";
 import ForkConfigPanel from "./ForkConfigPanel";
+import { Chain } from "viem";
+import { ChainOption } from "../types";
 
 const FunctionCallsPanel: React.FC = () => {
   const {
@@ -31,8 +33,11 @@ const FunctionCallsPanel: React.FC = () => {
 
   // Determine which chain we're using for display purposes
   const chainName = useMemo(() => {
+    if (!forkConfig) return "Base"; // Default fallback
     if (forkConfig.rpcUrl) return "Custom RPC";
-    const chain = availableChains.find((c) => c.id === forkConfig.chainId);
+    const chain = availableChains.find(
+      (c: ChainOption) => c.id === forkConfig.chainId,
+    );
     return chain?.name || "Base";
   }, [forkConfig, availableChains]);
 
@@ -42,7 +47,7 @@ const FunctionCallsPanel: React.FC = () => {
         <h2 className="text-xl font-bold">Function Calls</h2>
         <p className="text-gray-800 italic">
           State forked from <span className="font-semibold">{chainName}</span>
-          {forkConfig.blockNumber
+          {forkConfig?.blockNumber
             ? ` at block ${forkConfig.blockNumber}`
             : " (latest)"}
         </p>

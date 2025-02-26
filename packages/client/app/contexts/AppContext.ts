@@ -1,8 +1,10 @@
 import { createContext } from "react";
 import type {
+  ChainOption,
   CompilationResult,
   FileFunctionCalls,
   FileId,
+  ForkConfig,
   FunctionCallResult,
   SolidityFile,
 } from "../types";
@@ -23,6 +25,9 @@ interface AppContextType {
   setIsCompiling: React.Dispatch<React.SetStateAction<boolean>>;
   clearCurrentFileFunctionCallResults: () => void;
   addNewContract: (newFile: SolidityFile) => void;
+  forkConfig: ForkConfig;
+  setForkConfig: React.Dispatch<React.SetStateAction<ForkConfig>>;
+  availableChains: ChainOption[];
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);

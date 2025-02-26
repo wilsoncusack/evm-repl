@@ -154,12 +154,6 @@ export const AppProvider: React.FC<{
     }
 
     try {
-      console.log("Sending fork config:", {
-        rpcUrl: forkConfig.rpcUrl,
-        chainId: forkConfig.chainId,
-        blockNumber: forkConfig.blockNumber,
-      });
-
       const response = await axios.post<ExecutionResponse[]>(
         `${process.env.NEXT_PUBLIC_SERVER}/execute_calldatas_fork`,
         {
@@ -174,7 +168,6 @@ export const AppProvider: React.FC<{
         },
       );
 
-      console.log("Response received:", response.data);
       const results = response.data;
 
       const output: FunctionCallResult[] = results.map((result, i) => {
