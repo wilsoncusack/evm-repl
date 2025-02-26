@@ -42,6 +42,42 @@ const SolidityEditor: React.FC = () => {
     if (currentModel) {
       editor.setModel(currentModel);
     }
+
+    // Configure editor theme based on system preference
+    const darkTheme = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    monaco.editor.defineTheme("systemTheme", {
+      base: darkTheme ? "vs-dark" : "vs",
+      inherit: true,
+      rules: [],
+      colors: {
+        "editor.background": darkTheme ? "#1f2937" : "#ffffff",
+        "editor.foreground": darkTheme ? "#f9fafb" : "#111827",
+        "editorLineNumber.foreground": darkTheme ? "#9ca3af" : "#6b7280",
+        "editor.lineHighlightBackground": darkTheme ? "#374151" : "#f3f4f6",
+      },
+    });
+    monaco.editor.setTheme("systemTheme");
+
+    // Listen for system theme changes
+    window
+      .matchMedia("(prefers-color-scheme: dark)")
+      .addEventListener("change", (event) => {
+        const newDarkTheme = event.matches;
+        monaco.editor.defineTheme("systemTheme", {
+          base: newDarkTheme ? "vs-dark" : "vs",
+          inherit: true,
+          rules: [],
+          colors: {
+            "editor.background": newDarkTheme ? "#1f2937" : "#ffffff",
+            "editor.foreground": newDarkTheme ? "#f9fafb" : "#111827",
+            "editorLineNumber.foreground": newDarkTheme ? "#9ca3af" : "#6b7280",
+            "editor.lineHighlightBackground": newDarkTheme
+              ? "#374151"
+              : "#f3f4f6",
+          },
+        });
+        monaco.editor.setTheme("systemTheme");
+      });
   };
 
   useEffect(() => {
@@ -72,20 +108,22 @@ const SolidityEditor: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex-grow bg-white shadow-lg overflow-hidden border border-gray-200">
+      <div className="flex-grow bg-editor shadow-md overflow-hidden border border-color-editor">
         {currentFile?.address && (
-          <div className="p-2 bg-gray-100 flex items-center justify-start">
-            <span className="text-sm font-mono mr-2">Contract Address:</span>
-            <div className="flex items-center bg-white border border-gray-300 rounded-md overflow-hidden">
-              <span className="text-sm font-mono px-2 py-1">
+          <div className="p-2 bg-editor-header flex items-center justify-start">
+            <span className="text-sm font-mono mr-2 text-secondary">
+              Contract Address:
+            </span>
+            <div className="flex items-center bg-editor-address border border-color-editor-address rounded-md overflow-hidden">
+              <span className="text-sm font-mono px-2 py-1 text-primary">
                 {currentFile.address}
               </span>
               <CopyToClipboard text={currentFile.address} onCopy={handleCopy}>
-                <button className="px-2 py-1 bg-gray-200 hover:bg-gray-300 transition-colors text-xs border-l border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button className="px-2 py-1 bg-editor-button hover:bg-editor-button-hover transition-colors text-xs border-l border-color-editor-address focus:outline-none focus:ring-2 focus:ring-accent">
                   {copied ? (
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 text-green-600"
+                      className="h-4 w-4 text-success"
                       viewBox="0 0 20 20"
                       fill="currentColor"
                     >
@@ -98,7 +136,7 @@ const SolidityEditor: React.FC = () => {
                   ) : (
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 text-gray-600"
+                      className="h-4 w-4 text-secondary"
                       viewBox="0 0 20 20"
                       fill="currentColor"
                     >
@@ -131,11 +169,18 @@ const SolidityEditor: React.FC = () => {
                   lineNumbersMinChars: 0,
                   overviewRulerBorder: false,
                   language: "sol",
+                  fontFamily:
+                    "'SF Mono', Menlo, Monaco, 'Courier New', monospace",
+                  fontLigatures: true,
+                  renderLineHighlight: "all",
+                  cursorBlinking: "smooth",
+                  smoothScrolling: true,
+                  cursorSmoothCaretAnimation: "on",
                 }}
               />
             ) : (
               <div className="h-full flex items-center justify-center">
-                <p className="text-gray-500">
+                <p className="text-secondary">
                   This contract was loaded from bytecode. Source code is not
                   available.
                 </p>

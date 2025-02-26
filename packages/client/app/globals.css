@@ -3,25 +3,220 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  /* Light mode colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-tertiary: #f3f4f6;
+  --border-color: #e5e7eb;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-tertiary: #6b7280;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-secondary: #1e40af;
+  --accent-secondary-hover: #1e3a8a;
+  --error: #ef4444;
+  --error-bg: #fee2e2;
+  --error-hover: #fecaca;
+  --success: #10b981;
+  --success-bg: #d1fae5;
+  --warning: #f59e0b;
+  --warning-bg: #fef3c7;
+  --warning-secondary: #d97706;
+  
+  /* Component-specific variables */
+  /* Panel */
+  --panel-header: var(--bg-secondary);
+  --panel-body: var(--bg-primary);
+  --panel-footer: var(--bg-secondary);
+  --color-panel: var(--border-color);
+  
+  /* Card */
+  --bg-card: var(--bg-primary);
+  --bg-card-header: var(--bg-secondary);
+  --color-card: var(--border-color);
+  
+  /* Input */
+  --bg-input: var(--bg-primary);
+  --color-input: var(--border-color);
+  
+  /* Result */
+  --bg-result: var(--bg-secondary);
+  
+  /* Editor */
+  --bg-editor: var(--bg-primary);
+  --bg-editor-header: var(--bg-secondary);
+  --bg-editor-address: var(--bg-primary);
+  --bg-editor-button: var(--bg-tertiary);
+  --bg-editor-button-hover: var(--bg-secondary);
+  --color-editor: var(--border-color);
+  --color-editor-address: var(--border-color);
+  
+  /* Sidebar */
+  --bg-sidebar: var(--bg-tertiary);
+  --bg-sidebar-hover: var(--bg-secondary);
+  --bg-sidebar-active: var(--bg-secondary);
+  --bg-sidebar-input: var(--bg-secondary);
+  --text-sidebar: var(--text-primary);
+  --border-sidebar: var(--border-color);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
+    /* Dark mode colors */
+    --bg-primary: #111827;
+    --bg-secondary: #1f2937;
+    --bg-tertiary: #374151;
+    --border-color: #4b5563;
+    --text-primary: #f9fafb;
+    --text-secondary: #e5e7eb;
+    --text-tertiary: #d1d5db;
+    --accent: #3b82f6;
+    --accent-hover: #60a5fa;
+    --accent-secondary: #93c5fd;
+    --accent-secondary-hover: #bfdbfe;
+    --error: #f87171;
+    --error-bg: #7f1d1d;
+    --error-hover: #ef4444;
+    --success: #34d399;
+    --success-bg: #065f46;
+    --warning: #fbbf24;
+    --warning-bg: #78350f;
+    --warning-secondary: #fcd34d;
   }
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+}
+
+/* Utility classes for our CSS variables */
+@layer utilities {
+  .text-primary {
+    color: var(--text-primary);
+  }
+  .text-secondary {
+    color: var(--text-secondary);
+  }
+  .text-tertiary {
+    color: var(--text-tertiary);
+  }
+  .text-error {
+    color: var(--error);
+  }
+  .text-success {
+    color: var(--success);
+  }
+  .text-warning {
+    color: var(--warning);
+  }
+  .text-warning-secondary {
+    color: var(--warning-secondary);
+  }
+  
+  .bg-primary {
+    background-color: var(--bg-primary);
+  }
+  .bg-secondary {
+    background-color: var(--bg-secondary);
+  }
+  .bg-tertiary {
+    background-color: var(--bg-tertiary);
+  }
+  .bg-error-bg {
+    background-color: var(--error-bg);
+  }
+  .bg-success-bg {
+    background-color: var(--success-bg);
+  }
+  .bg-warning-bg {
+    background-color: var(--warning-bg);
+  }
+  .bg-error-hover {
+    background-color: var(--error-hover);
+  }
+  
+  .bg-accent {
+    background-color: var(--accent);
+  }
+  .bg-accent-hover {
+    background-color: var(--accent-hover);
+  }
+  
+  .border-color-panel {
+    border-color: var(--color-panel);
+  }
+  .border-color-card {
+    border-color: var(--color-card);
+  }
+  .border-color-input {
+    border-color: var(--color-input);
+  }
+  .border-color-editor {
+    border-color: var(--color-editor);
+  }
+  .border-color-editor-address {
+    border-color: var(--color-editor-address);
+  }
+  .border-sidebar-border {
+    border-color: var(--border-sidebar);
+  }
+  
+  .bg-panel-header {
+    background-color: var(--panel-header);
+  }
+  .bg-panel-body {
+    background-color: var(--panel-body);
+  }
+  .bg-panel-footer {
+    background-color: var(--panel-footer);
+  }
+  
+  .bg-card {
+    background-color: var(--bg-card);
+  }
+  .bg-card-header {
+    background-color: var(--bg-card-header);
+  }
+  
+  .bg-input {
+    background-color: var(--bg-input);
+  }
+  
+  .bg-result {
+    background-color: var(--bg-result);
+  }
+  
+  .bg-editor {
+    background-color: var(--bg-editor);
+  }
+  .bg-editor-header {
+    background-color: var(--bg-editor-header);
+  }
+  .bg-editor-address {
+    background-color: var(--bg-editor-address);
+  }
+  .bg-editor-button {
+    background-color: var(--bg-editor-button);
+  }
+  .bg-editor-button-hover {
+    background-color: var(--bg-editor-button-hover);
+  }
+  
+  .bg-sidebar {
+    background-color: var(--bg-sidebar);
+  }
+  .bg-sidebar-hover {
+    background-color: var(--bg-sidebar-hover);
+  }
+  .bg-sidebar-active {
+    background-color: var(--bg-sidebar-active);
+  }
+  .bg-sidebar-input {
+    background-color: var(--bg-sidebar-input);
+  }
+  .text-sidebar-text {
+    color: var(--text-sidebar);
+  }
 }
