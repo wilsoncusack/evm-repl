@@ -1,0 +1,7 @@
+{
+  "rust-analyzer.linkedProjects": [
+    "packages/server/Cargo.toml"
+  ],
+  "rust-analyzer.checkOnSave.extraArgs": ["--target-dir", "./target"],
+  "rust-analyzer.cargo.features": "all"
+}

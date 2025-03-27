@@ -1,0 +1,7 @@
+# Rust
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
