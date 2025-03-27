@@ -11,14 +11,14 @@ use forge::{
     backend::{self},
     executors::ExecutorBuilder,
     opts::EvmOpts,
-    traces::CallTraceArena,
+    traces::{CallTraceArena, TraceMode},
 };
 use foundry_config::Config;
 use revm::{interpreter::InstructionResult, primitives::TxEnv};
 use revm_primitives::{AccountInfo, BlockEnv, Bytecode, CfgEnv, Env};
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct Call {
     pub calldata: Bytes,
     pub value: U256,
@@ -31,6 +31,12 @@ pub struct ForkConfig {
     pub rpc_url: Option<String>,
     pub chain_id: Option<u64>,
     pub block_number: Option<u64>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionOptions {
+    pub trace_mode: Option<String>, // "call", "jump", "jumpSimple", "debug", "none"
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -88,11 +94,13 @@ pub async fn execute_calldatas_fork(
     address: Address,
     calls: Vec<Call>,
     fork_config: Option<ForkConfig>,
+    options: Option<ExecutionOptions>,
 ) -> Result<Vec<ExecutionResult>, eyre::Error> {
     dotenv().ok();
 
     // Debug log the fork config
     println!("Fork config: {:?}", fork_config);
+    println!("Execution options: {:?}", options);
 
     // Get RPC URL from fork config or environment variable
     let rpc = match &fork_config {
@@ -191,7 +199,22 @@ pub async fn execute_calldatas_fork(
     );
     let backend = backend::Backend::spawn(opts.get_fork(&Config::default(), opts.evm_env().await?));
     let mut executor = ExecutorBuilder::new()
-        .inspectors(|stack| stack.trace_mode(forge::traces::TraceMode::Call).logs(true))
+        .inspectors(|stack| {
+            // Default to Jump trace mode if not specified in options
+            let trace_mode = match &options {
+                Some(opts) => match opts.trace_mode.as_deref() {
+                    Some("debug") => TraceMode::Debug,
+                    Some("jump") => TraceMode::Jump,
+                    Some("jumpSimple") => TraceMode::JumpSimple,
+                    Some("call") => TraceMode::Call,
+                    Some("none") => TraceMode::None, 
+                    _ => TraceMode::Jump, // Default to Jump mode for best balance
+                },
+                None => TraceMode::Call, // Default to Jump mode for best balance
+            };
+            println!("Trace mode: {:?}", trace_mode);
+            stack.trace_mode(trace_mode).logs(true)
+        })
         .build(env, backend);
 
     let deployed_bytecode = Bytecode::new_raw(deployed_bytes);
@@ -256,7 +279,7 @@ mod tests {
 
         // Execute the calls
         let results =
-            execute_calldatas_fork(bytecode, address, vec![store_call, retrieve_call], None)
+            execute_calldatas_fork(bytecode, address, vec![store_call, retrieve_call], None, None)
                 .await
                 .unwrap();
 
