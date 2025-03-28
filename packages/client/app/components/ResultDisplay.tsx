@@ -3,14 +3,17 @@ import TraceDisplay from "./TraceDispaly";
 import { FunctionCallResult } from "../types";
 import { useAppContext } from "../hooks/useAppContext";
 import { decodeRevertData } from "../utils/decodeRevertData";
+import TraceDebugger from "./TraceDebugger";
+import { EnhancedFunctionCallResult } from "../types/sourceMapping";
 
 interface ResultDisplayProps {
-  result: FunctionCallResult;
+  result: EnhancedFunctionCallResult;
 }
 
 const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
   const { currentFileCompilationResult } = useAppContext();
   const [showTraces, setShowTraces] = useState(false);
+  const [showTraceDebugger, setShowTraceDebugger] = useState(false);
 
   // Check if the transaction reverted
   const hasReverted = () => {
@@ -58,27 +61,37 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
   const isReverted = hasReverted();
 
   return (
-    <div className="p-4 bg-result border-t border-color-card space-y-3">
-      <div className="flex items-baseline">
-        <span className="text-sm font-semibold text-secondary w-20">
-          {isReverted ? "Reverted:" : "Returned:"}
-        </span>
-        {!isReverted ? (
-          <span className="font-mono text-sm text-success bg-success-bg px-2 py-1 rounded">
-            {result.response}
-          </span>
-        ) : (
-          <span className="font-mono text-sm text-error bg-error-bg px-2 py-1 rounded">
-            {getRevertReason()}
-          </span>
-        )}
-      </div>
+    <div
+      className={`p-4 rounded-md ${
+        isReverted ? "bg-error-bg" : "bg-success-bg"
+      }`}
+    >
+      <div className="flex justify-between items-start">
+        <div>
+          <h3 className="text-lg font-bold">
+            <span
+              className={`${isReverted ? "text-error" : "text-success"}`}
+            >
+              {isReverted ? "Reverted" : "Success"}
+            </span>
+            <span className="ml-2 text-base font-normal text-primary">
+              {result.call}
+            </span>
+          </h3>
 
-      <div className="flex items-baseline">
-        <span className="text-sm font-semibold text-secondary w-20">
-          Gas used:
-        </span>
-        <span className="font-mono text-sm text-success">{result.gasUsed}</span>
+          <div className="mt-2 font-mono text-sm">
+            <div>
+              <span className="text-secondary">Gas Used:</span>{" "}
+              <span className="text-primary">{result.gasUsed}</span>
+            </div>
+            <div>
+              <span className="text-secondary">Result:</span>{" "}
+              <span className="text-primary overflow-hidden overflow-ellipsis">
+                {isReverted ? getRevertReason() : result.response}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-1">
@@ -113,19 +126,34 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
             </div>
           ))}
       </div>
-      {result.traces && (
-        <div>
+      
+      <div className="mt-4 space-y-2">
+        {result.traces && (
           <button
             type="button"
             onClick={() => setShowTraces(!showTraces)}
+            className="px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors mr-2"
+          >
+            {showTraces ? "Hide Basic Traces" : "Show Basic Traces"}
+          </button>
+        )}
+        
+        {result.sourceMapping && (
+          <button
+            type="button"
+            onClick={() => setShowTraceDebugger(!showTraceDebugger)}
             className="px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors"
           >
-            {showTraces ? "Hide Traces" : "Show Traces"}
+            {showTraceDebugger ? "Hide Source Trace Debugger" : "Show Source Trace Debugger"}
           </button>
+        )}
 
-          {showTraces && <TraceDisplay traces={result.traces} />}
-        </div>
-      )}
+        {showTraces && <TraceDisplay traces={result.traces} />}
+        
+        {showTraceDebugger && result.sourceMapping && (
+          <TraceDebugger result={result} />
+        )}
+      </div>
     </div>
   );
 };

@@ -15,6 +15,7 @@ pub struct SolidityFile {
 
 // Define a new struct to represent a source element in a more serializable way
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
 pub struct SerializableSourceElement {
     pub offset: u32,
     pub length: u32,

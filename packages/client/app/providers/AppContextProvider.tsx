@@ -25,6 +25,8 @@ import {
 import axios from "axios";
 import { useDebounce } from "../hooks/useDebounce";
 import { extractFileName, replacer } from "../utils";
+import { enhanceFunctionCallResult } from "../utils/traceEnhancer";
+import { EnhancedFunctionCallResult } from "../types/sourceMapping";
 
 // Add a shared networks configuration that can be used throughout the app
 export const SUPPORTED_NETWORKS: ChainOption[] = [
@@ -53,7 +55,7 @@ export const AppProvider: React.FC<{
   >(undefined);
   const [isCompiling, setIsCompiling] = useState(false);
   const [currentFileFunctionCallResults, setCurrentFileFunctionCallResults] =
-    useState<FunctionCallResult[] | undefined>(undefined);
+    useState<EnhancedFunctionCallResult[] | undefined>(undefined);
   const [forkConfig, setForkConfig] = useState<ForkConfig>({
     chainId: 8453, // Default to Base
   });
@@ -140,7 +142,13 @@ export const AppProvider: React.FC<{
       return;
     }
 
-    const filteredCalls = calls.filter((call) => call.encodedCalldata);
+    // Add bytecode to each function call for tracing purposes
+    const enrichedCalls = calls.map(call => ({
+      ...call,
+      contractBytecode: bytecode as Hex
+    }));
+
+    const filteredCalls = enrichedCalls.filter((call) => call.encodedCalldata);
 
     const encodedCalls: { calldata: Hex; value: string; caller: Address }[] =
       [];
@@ -165,55 +173,87 @@ export const AppProvider: React.FC<{
             chainId: forkConfig.chainId,
             blockNumber: forkConfig.blockNumber,
           },
+          traceMode: 'jump'
         },
       );
 
       const results = response.data;
 
-      const output: FunctionCallResult[] = results.map((result, i) => {
-        if (!abi) {
-          return {
-            call: filteredCalls[i].name || "",
-            gasUsed: result.gasUsed,
-            response: result.result,
-            // TODO: try to dump raw logs
-            rawLogs: result.logs,
-            traces: result.traces,
-          };
+      // Prepare source files map
+      const sourceFiles: Record<string, string> = {
+        [currentFile.name]: currentFile.content,
+      };
+      
+      // Add any imported files from other files in the project
+      files.forEach(file => {
+        if (file.id !== currentFile.id) {
+          sourceFiles[file.name] = file.content;
         }
+      });
+      
+      console.log('Source files for mapping:', Object.keys(sourceFiles));
 
+      // Enhanced results with source mapping
+      const enhancedResults: EnhancedFunctionCallResult[] = [];
+
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        const functionCall = filteredCalls[i];
+        
         let returned: string;
         try {
-          returned = String(
-            decodeFunctionResult({
-              abi,
-              functionName: calls[i].name,
-              data: result.result,
-            }),
-          );
+          if (abi) {
+            returned = String(
+              decodeFunctionResult({
+                abi,
+                functionName: calls[i].name,
+                data: result.result,
+              }),
+            );
+          } else {
+            returned = result.result;
+          }
         } catch (e) {
           returned = result.result;
         }
-        const logs: DecodeEventLogReturnType[] = result.logs.map((log) =>
-          decodeEventLog({
-            abi,
-            data: log.data,
-            topics: log.topics,
-          }),
-        );
+        
+        const logs: DecodeEventLogReturnType[] = abi
+          ? result.logs.map((log) =>
+              decodeEventLog({
+                abi,
+                data: log.data,
+                topics: log.topics,
+              }),
+            )
+          : [];
 
-        return {
-          // biome-ignore lint/style/noNonNullAssertion: all filtered calls have a name
-          call: filteredCalls[i].name!,
+        // Create basic function call result
+        const basicResult: FunctionCallResult = {
+          call: functionCall.name || "",
           gasUsed: result.gasUsed,
           response: returned,
           logs,
-          traces: result.traces,
           rawLogs: result.logs,
+          traces: result.traces,
         };
-      });
+        
+        // Enhance with source mapping if compilation result exists
+        if (compilationResult) {
+          enhancedResults.push(
+            enhanceFunctionCallResult(
+              basicResult,
+              functionCall,
+              compilationResult,
+              sourceFiles
+            )
+          );
+        } else {
+          // If no compilation result, just use the basic result
+          enhancedResults.push(basicResult as EnhancedFunctionCallResult);
+        }
+      }
 
-      setCurrentFileFunctionCallResults(output);
+      setCurrentFileFunctionCallResults(enhancedResults);
     } catch (error) {
       console.error("Execution error:", error);
     }
@@ -222,6 +262,8 @@ export const AppProvider: React.FC<{
     filesFunctionCalls,
     currentFileCompilationResult,
     forkConfig,
+    files,
+    compilationResult,
   ]);
 
   const addNewContract = useCallback((newFile: SolidityFile) => {
