@@ -96,36 +96,31 @@ pub fn compile(files: &[SolidityFile]) -> Result<CompileResult, eyre::Error> {
 
     let output = project.compile()?;
 
+    println!("Output: {:?}", output);
+
     let mut source_maps = BTreeMap::new();
+    // let mut generated_sources = BTreeMap::new();
 
     // Using the contracts_with_files_and_version iterator method
-    for (file_path, contract_name, contract, _) in
+     for (file_path, contract_name, contract, _) in
         output.output().contracts.contracts_with_files_and_version()
     {
+        // Simplified approach: use get_source_map functions directly
         // Get creation bytecode source map
-        if let Some(bytecode) = contract.get_bytecode() {
-            // Process source map data using our helper function
-            if let Some(source_map_result) = bytecode.source_map() {
-                if let Ok(source_map_data) = source_map_result {
-                    let (key, value) =
-                        process_source_map_data(&source_map_data, &file_path, contract_name, false);
-                    source_maps.insert(key, value);
-                }
-            } else if let Some(source_map) = &bytecode.source_map {
-                // Fallback to the string representation if source_map() is not available
-                let key = format!("{}:{}", file_path.display(), contract_name);
-                source_maps.insert(key, source_map.clone());
+        if let Some(source_map_result) = contract.get_source_map() {
+            if let Ok(source_map_data) = source_map_result {
+                let (key, value) =
+                    process_source_map_data(&source_map_data, &file_path, contract_name, false);
+                source_maps.insert(key, value);
             }
         }
 
-        // Get deployed/runtime bytecode source map (if available)
-        if let Some(deployed_bytecode) = contract.get_deployed_bytecode() {
-            if let Some(source_map_result) = deployed_bytecode.source_map() {
-                if let Ok(source_map_data) = source_map_result {
-                    let (key, value) =
-                        process_source_map_data(&source_map_data, &file_path, contract_name, true);
-                    source_maps.insert(key, value);
-                }
+        // Get deployed bytecode source map
+        if let Some(source_map_result) = contract.get_source_map_deployed() {
+            if let Ok(source_map_data) = source_map_result {
+                let (key, value) =
+                    process_source_map_data(&source_map_data, &file_path, contract_name, true);
+                source_maps.insert(key, value);
             }
         }
     }
@@ -134,6 +129,7 @@ pub fn compile(files: &[SolidityFile]) -> Result<CompileResult, eyre::Error> {
         errors: output.output().errors.clone(),
         contracts: output.output().contracts.clone(),
         source_maps,
+        // generated_sources,
     })
 }
 

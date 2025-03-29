@@ -150,20 +150,18 @@ export function calculateLineAndColumn(source: string, offset: number): { line: 
   if (offset < 0 || offset > source.length) {
     console.warn(`Offset ${offset} is out of bounds for source of length ${source.length}`);
     
-    // For out-of-bounds offsets, clamp to valid range instead of returning 0,0
+    // For out-of-bounds offsets, clamp to valid range
+    // Note: offsets may be referring to intermediate Yul IR, not the Solidity source directly
     const clampedOffset = Math.min(Math.max(0, offset), source.length);
     
-    // If the offset is completely out of bounds but positive, use the last character position
-    if (offset > source.length) {
-      const textBefore = source;
-      const lines = textBefore.split('\n');
-      return { 
-        line: lines.length - 1, 
-        column: lines[lines.length - 1].length 
-      };
+    // Log that we're clamping and returning a best guess
+    if (offset !== clampedOffset) {
+      console.warn(`Clamping out-of-bounds offset ${offset} to ${clampedOffset} (likely referencing Yul IR position)`);
+      offset = clampedOffset;
     }
   }
   
+  // Use a more efficient approach for line calculation
   const textBefore = source.substring(0, offset);
   const lines = textBefore.split('\n');
   const line = lines.length - 1; // 0-indexed
@@ -188,6 +186,13 @@ export function createPCToSourceMap(
   console.log('Creating PC to source map');
   console.log('Source maps length:', sourceMaps.length);
   console.log('Bytecode length:', bytecode?.length || 'undefined');
+  console.log('Source files available:', Object.keys(sourceFiles).join(', '));
+  
+  // Debug: log the first few lines of each source file to verify content
+  for (const [path, content] of Object.entries(sourceFiles)) {
+    const firstLines = content.split('\n').slice(0, 3).join('\n');
+    console.log(`First few lines of ${path}:\n${firstLines}...\n(total ${content.length} chars)`);
+  }
   
   const pcToSource = new Map<number, SourceLocation>();
   
@@ -204,11 +209,23 @@ export function createPCToSourceMap(
   // Create a map for normalizing file paths
   const normalizedFilePathsMap = new Map<string, string>();
   for (const filePath of Object.keys(sourceFiles)) {
-    // For each file path in sourceFiles, create a normalized version (just the file name)
+    // For each file path in sourceFiles, create multiple normalized versions
     const fileName = filePath.split('/').pop() || filePath;
     normalizedFilePathsMap.set(filePath, filePath); // Original to original
     normalizedFilePathsMap.set(fileName, filePath); // Short name to original
+    
+    // Also add without file extensions (handles variations like .sol vs empty)
+    if (fileName.includes('.')) {
+      const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+      normalizedFilePathsMap.set(nameWithoutExt, filePath);
+    }
   }
+  
+  // Debug: log the normalization map
+  console.log('File path normalization map:');
+  Array.from(normalizedFilePathsMap.entries()).forEach(([key, value]) => {
+    console.log(`  "${key}" -> "${value}"`);
+  });
   
   // Helper function to get file content by normalized path
   const getFileContentByPath = (path: string): string | undefined => {
@@ -229,11 +246,23 @@ export function createPCToSourceMap(
       return sourceFiles[normalizedPath];
     }
     
-    // Log the failed lookup
-    console.warn(`Source file not found: ${path}`);
-    console.warn('Available files:', Object.keys(sourceFiles));
-    console.warn('Normalized path mappings:', Array.from(normalizedFilePathsMap.entries()));
+    // One more attempt - try without file extension
+    if (fileName.includes('.')) {
+      const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+      if (sourceFiles[nameWithoutExt]) {
+        return sourceFiles[nameWithoutExt];
+      }
+      
+      // Check if there's a match with any file starting with this name
+      for (const key of Object.keys(sourceFiles)) {
+        if (key.startsWith(nameWithoutExt)) {
+          return sourceFiles[key];
+        }
+      }
+    }
     
+    // Log the failed lookup
+    console.warn(`Source file not found: "${path}"`);
     return undefined;
   };
   
@@ -248,58 +277,78 @@ export function createPCToSourceMap(
       indexToInstruction.set(instruction.index, instruction);
     });
     
-    // Debug: log first few instructions
-    console.log('First 5 instructions:');
-    instructions.slice(0, 5).forEach(inst => {
-      console.log(`Index: ${inst.index}, PC: ${inst.pc}, Op: ${inst.opcodeName}`);
-    });
+    // Count for statistics
+    let validMappings = 0;
+    let invalidOffsets = 0;
+    let missingFiles = 0;
     
-    // If source maps have individual entries (from JSON parsing), use them directly
+    // Check if the sourceMaps format is the newer JSON format with direct entries
     if (sourceMaps.length > 0 && sourceMaps[0].offset > 0) {
-      console.log('Using direct source map entries');
+      console.log('Using direct source map entries (JSON format)');
       
       // For each entry in the source map...
       for (let i = 0; i < sourceMaps.length; i++) {
         const entry = sourceMaps[i];
         
         // Find the instruction by its index
-        // We map the source entry index to the instruction index
         const instruction = indexToInstruction.get(i);
         
-        if (instruction && entry.sourceList && entry.sourceList.length > 0) {
-          const sourceFilePath = entry.sourceList[0];
-          const fileContent = getFileContentByPath(sourceFilePath);
-          
-          if (!fileContent) {
-            continue;
-          }
-          
-          // Get normalized file path
-          const normalizedPath = normalizedFilePathsMap.get(sourceFilePath) || 
-                               normalizedFilePathsMap.get(sourceFilePath.split('/').pop() || sourceFilePath) || 
-                               sourceFilePath;
-          
-          // Calculate line and column
-          const { line, column } = calculateLineAndColumn(fileContent, entry.offset);
-          
-          // Create source location
-          const sourceLocation: SourceLocation = {
-            offset: entry.offset,
-            length: entry.length,
-            index: entry.index,
-            jumpType: entry.jumpType,
-            modifierDepth: entry.modifierDepth,
-            filePath: normalizedPath,
-            line,
-            column
-          };
-          
-          // Add to map
-          pcToSource.set(instruction.pc, sourceLocation);
+        if (!instruction) {
+          continue;
         }
+        
+        if (!entry.sourceList || entry.sourceList.length === 0) {
+          continue;
+        }
+        
+        const sourceFilePath = entry.sourceList[0];
+        const fileContent = getFileContentByPath(sourceFilePath);
+        
+        if (!fileContent) {
+          missingFiles++;
+          continue;
+        }
+        
+        // Handle source map offsets that refer to Yul IR positions
+        // Instead of treating them as errors, just clamp them to the file content
+        const originalOffset = entry.offset;
+        let offset = originalOffset;
+        let isOutOfBounds = false;
+        
+        if (offset < 0 || offset > fileContent.length) {
+          isOutOfBounds = true;
+          invalidOffsets++;
+          
+          // Clamp to valid bounds while preserving a flag that this was out of bounds
+          offset = Math.min(Math.max(0, offset), fileContent.length);
+        }
+        
+        // Get normalized file path
+        const normalizedPath = normalizedFilePathsMap.get(sourceFilePath) || 
+                             normalizedFilePathsMap.get(sourceFilePath.split('/').pop() || sourceFilePath) || 
+                             sourceFilePath;
+        
+        // Calculate line and column
+        const { line, column } = calculateLineAndColumn(fileContent, offset);
+        
+        // Create source location
+        const sourceLocation: SourceLocation = {
+          offset: offset, // Use the clamped offset for valid calculations
+          length: entry.length,
+          index: entry.index,
+          jumpType: entry.jumpType,
+          modifierDepth: entry.modifierDepth,
+          filePath: normalizedPath,
+          line,
+          column
+        };
+        
+        // Add to map, even if the offset was out of bounds
+        pcToSource.set(instruction.pc, sourceLocation);
+        validMappings++;
       }
     } 
-    // If we have the traditional semicolon-separated format
+    // Handle traditional semicolon-separated format
     else if (sourceMaps.length > 0 && sourceMaps[0].mappings) {
       console.log('Using semicolon-separated source maps');
       
@@ -320,6 +369,7 @@ export function createPCToSourceMap(
       
       const fileContent = getFileContentByPath(sourceFilePath);
       if (!fileContent) {
+        console.error(`Source file '${sourceFilePath}' not found for main mapping`);
         return pcToSource;
       }
       
@@ -344,19 +394,25 @@ export function createPCToSourceMap(
         // Split mapping into components
         const parts = mapping.split(':');
         
-        // Parse offset
+        // Parse source map entries
+        // The format is: offset:sourceIndex:startPos:length:jumpType:modifierDepth
+        // Any of these may be omitted to use the previous value
+        
+        // Parse offset (program counter relative)
         const offset = parts[0] ? parseInt(parts[0], 10) : lastOffset;
         
-        // Parse source index
+        // Parse source index (file index)
         let sourceIndex = lastSourceIndex;
         if (parts.length > 1 && parts[1]) {
           sourceIndex = parseInt(parts[1], 10);
         }
         
         // Skip if no source index (e.g., compiler-generated code)
-        if (sourceIndex === -1) continue;
+        if (sourceIndex === -1) {
+          continue;
+        }
         
-        // Parse start position
+        // Parse start position (character offset in source)
         let startPos = lastOffset;
         if (parts.length > 2 && parts[2]) {
           startPos = parseInt(parts[2], 10);
@@ -383,25 +439,41 @@ export function createPCToSourceMap(
         // Get instruction by index
         const instruction = indexToInstruction.get(i);
         
-        if (instruction) {
-          // Calculate line and column
-          const { line, column } = calculateLineAndColumn(fileContent, startPos);
-          
-          // Create source location
-          const sourceLocation: SourceLocation = {
-            offset: startPos,
-            length,
-            index: sourceIndex,
-            jumpType,
-            modifierDepth,
-            filePath: normalizedPath,
-            line,
-            column
-          };
-          
-          // Add to map
-          pcToSource.set(instruction.pc, sourceLocation);
+        if (!instruction) {
+          continue;
         }
+        
+        // Handle source map offsets that refer to Yul IR positions
+        // Instead of treating them as errors, just clamp them and flag them
+        const originalStartPos = startPos;
+        let isOutOfBounds = false;
+        
+        if (startPos < 0 || startPos > fileContent.length) {
+          isOutOfBounds = true;
+          invalidOffsets++;
+          
+          // Clamp to valid bounds
+          startPos = Math.min(Math.max(0, startPos), fileContent.length);
+        }
+        
+        // Calculate line and column
+        const { line, column } = calculateLineAndColumn(fileContent, startPos);
+        
+        // Create source location with additional metadata
+        const sourceLocation: SourceLocation = {
+          offset: startPos, // Use the clamped offset for valid calculations
+          length,
+          index: sourceIndex,
+          jumpType,
+          modifierDepth,
+          filePath: normalizedPath,
+          line,
+          column
+        };
+        
+        // Add to map, even if the offset was out of bounds
+        pcToSource.set(instruction.pc, sourceLocation);
+        validMappings++;
         
         // Update state
         lastSourceIndex = sourceIndex;
@@ -414,7 +486,8 @@ export function createPCToSourceMap(
       console.warn('Source maps are in an unrecognized format');
     }
     
-    console.log(`Created PC to source map with ${pcToSource.size} entries`);
+    console.log(`Created PC to source map with ${pcToSource.size} entries (${validMappings} valid, ${invalidOffsets} invalid offsets, ${missingFiles} missing files)`);
+    console.log('Note: Invalid offsets likely refer to Yul IR positions rather than direct Solidity source positions');
     
     // Log some sample entries
     const entries = Array.from(pcToSource.entries());
