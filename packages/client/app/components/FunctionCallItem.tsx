@@ -48,11 +48,13 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
     currentFile,
     currentFileCompilationResult,
     clearCurrentFileFunctionCallResults,
+    setIsTraceDebuggerOpen,
+    setActiveTraceId,
+    activeTraceId
   } = useAppContext();
   
   const { 
-    setActiveTraceResult, 
-    setIsTraceDebuggerOpen,
+    setActiveTraceResult,
     activeTraceResult
   } = useTracing();
   
@@ -64,21 +66,43 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
   // Check if this call is the active trace
   const isActive = activeTraceResult && 
     result && 
-    activeTraceResult.call === result.call;
+    call.id && 
+    activeTraceId === call.id;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: only want this to run when compilation changes
   useEffect(() => {
     handleFunctionCallsChange(call.rawInput, index);
   }, [currentFileCompilationResult]);
 
+  // Add a unique ID to each function call
+  useEffect(() => {
+    // Generate a unique ID for this call if it doesn't have one
+    if (!call.id) {
+      setFilesFunctionCalls((prev) => {
+        const newCalls = [...(prev[currentFile.id] || [])];
+        newCalls[index] = {
+          ...newCalls[index],
+          id: `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        };
+        return { ...prev, [currentFile.id]: newCalls };
+      });
+    }
+  }, []);
+
   // Show debugger trace when hovering
   useEffect(() => {
     if (isHovered && result) {
       setActiveTraceResult(result);
       setIsTraceDebuggerOpen(true);
+      
+      // Set the active trace ID
+      if (call.id) {
+        setActiveTraceId(call.id);
+      }
+      
       scrollToFunction(result);
     }
-  }, [isHovered, result, setActiveTraceResult, setIsTraceDebuggerOpen]);
+  }, [isHovered, result, call.id, setActiveTraceResult, setIsTraceDebuggerOpen, setActiveTraceId]);
 
   const handleFunctionCallsChange = useCallback(
     (newCall: string, index: number) => {

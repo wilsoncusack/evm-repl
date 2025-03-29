@@ -61,6 +61,9 @@ export const AppProvider: React.FC<{
   });
   const [availableChains, setAvailableChains] =
     useState<ChainOption[]>(SUPPORTED_NETWORKS);
+  const [activeTraceId, setActiveTraceId] = useState<string | null>(null);
+  const [isTraceDebuggerOpen, setIsTraceDebuggerOpen] = useState<boolean>(false);
+  const [showDetailedPanel, setShowDetailedPanel] = useState<boolean>(true);
 
   const currentFile = useMemo(() => {
     return files.find((f) => f.id === currentFileId);
@@ -310,6 +313,12 @@ export const AppProvider: React.FC<{
     setForkConfig,
     availableChains,
     setAvailableChains,
+    activeTraceId,
+    setActiveTraceId,
+    isTraceDebuggerOpen,
+    setIsTraceDebuggerOpen,
+    showDetailedPanel,
+    setShowDetailedPanel,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -11,7 +11,7 @@ import {
 } from "../types";
 import { EnhancedFunctionCallResult } from "../types/sourceMapping";
 
-export const AppContext = createContext<{
+export type AppContextType = {
   files: SolidityFile[];
   setFiles: (files: SolidityFile[]) => void;
   filesFunctionCalls: FileFunctionCalls;
@@ -29,7 +29,15 @@ export const AppContext = createContext<{
   setForkConfig: (config: ForkConfig) => void;
   availableChains: ChainOption[];
   setAvailableChains: (chains: ChainOption[]) => void;
-}>({
+  activeTraceId: string | null;
+  setActiveTraceId: (id: string | null) => void;
+  isTraceDebuggerOpen: boolean;
+  setIsTraceDebuggerOpen: (open: boolean) => void;
+  showDetailedPanel: boolean;
+  setShowDetailedPanel: (show: boolean) => void;
+};
+
+export const AppContext = createContext<AppContextType>({
   files: [],
   setFiles: () => {},
   filesFunctionCalls: {},
@@ -47,4 +55,10 @@ export const AppContext = createContext<{
   setForkConfig: () => {},
   availableChains: [],
   setAvailableChains: () => {},
+  activeTraceId: null,
+  setActiveTraceId: () => {},
+  isTraceDebuggerOpen: false,
+  setIsTraceDebuggerOpen: () => {},
+  showDetailedPanel: true,
+  setShowDetailedPanel: () => {},
 });

@@ -76,6 +76,74 @@ const EditorStyles = () => {
         }
       }
       
+      /* Gas usage annotation styles */
+      .gas-annotation {
+        font-size: 0.7rem;
+        font-family: monospace;
+        padding: 0 4px;
+        border-radius: 2px;
+        margin-right: 4px;
+        white-space: nowrap;
+        position: absolute;
+        left: 0;
+        transform: translateX(-100%);
+      }
+      .gas-annotation-very-low {
+        background-color: rgba(74, 222, 128, 0.2);
+        color: rgb(22, 101, 52);
+      }
+      .gas-annotation-low {
+        background-color: rgba(74, 222, 128, 0.3);
+        color: rgb(22, 101, 52);
+      }
+      .gas-annotation-medium {
+        background-color: rgba(250, 204, 21, 0.3);
+        color: rgb(161, 98, 7);
+      }
+      .gas-annotation-high {
+        background-color: rgba(248, 113, 113, 0.3);
+        color: rgb(153, 27, 27);
+      }
+      .gas-annotation-very-high {
+        background-color: rgba(239, 68, 68, 0.4);
+        color: rgb(153, 27, 27);
+      }
+      
+      /* Dark mode gas annotation colors */
+      @media (prefers-color-scheme: dark) {
+        .gas-annotation-very-low {
+          background-color: rgba(74, 222, 128, 0.2);
+          color: rgb(134, 239, 172);
+        }
+        .gas-annotation-low {
+          background-color: rgba(74, 222, 128, 0.3);
+          color: rgb(134, 239, 172);
+        }
+        .gas-annotation-medium {
+          background-color: rgba(250, 204, 21, 0.3);
+          color: rgb(253, 224, 71);
+        }
+        .gas-annotation-high {
+          background-color: rgba(248, 113, 113, 0.3);
+          color: rgb(252, 165, 165);
+        }
+        .gas-annotation-very-high {
+          background-color: rgba(239, 68, 68, 0.4);
+          color: rgb(252, 165, 165);
+        }
+      }
+      
+      /* Gas usage margin annotations */
+      .gas-margin-annotation {
+        margin-left: 4px;
+        font-size: 0.75rem;
+        font-family: monospace;
+        opacity: 0.9;
+        background-color: rgba(100, 100, 100, 0.1);
+        padding: 0 4px;
+        border-radius: 2px;
+      }
+      
       .execution-count {
         font-size: 0.75rem;
         opacity: 0.8;
@@ -108,6 +176,62 @@ const EditorStyles = () => {
       .active-function-range {
         background-color: rgba(100, 100, 100, 0.05);
         border-left: 2px solid rgba(100, 100, 100, 0.2);
+      }
+      
+      /* Gas widget styles */
+      .gas-widget {
+        background-color: rgba(100, 100, 100, 0.1);
+        color: inherit;
+        padding: 0 4px;
+        border-radius: 2px;
+        font-size: 0.75rem;
+        font-family: monospace;
+        margin-left: 8px;
+        white-space: nowrap;
+      }
+      .gas-widget-very-low {
+        background-color: rgba(74, 222, 128, 0.2);
+        color: rgb(22, 101, 52);
+      }
+      .gas-widget-low {
+        background-color: rgba(74, 222, 128, 0.3);
+        color: rgb(22, 101, 52);
+      }
+      .gas-widget-medium {
+        background-color: rgba(250, 204, 21, 0.3);
+        color: rgb(161, 98, 7);
+      }
+      .gas-widget-high {
+        background-color: rgba(248, 113, 113, 0.3);
+        color: rgb(153, 27, 27);
+      }
+      .gas-widget-very-high {
+        background-color: rgba(239, 68, 68, 0.4);
+        color: rgb(153, 27, 27);
+      }
+      
+      /* Dark mode gas widget colors */
+      @media (prefers-color-scheme: dark) {
+        .gas-widget-very-low {
+          background-color: rgba(74, 222, 128, 0.2);
+          color: rgb(134, 239, 172);
+        }
+        .gas-widget-low {
+          background-color: rgba(74, 222, 128, 0.3);
+          color: rgb(134, 239, 172);
+        }
+        .gas-widget-medium {
+          background-color: rgba(250, 204, 21, 0.3);
+          color: rgb(253, 224, 71);
+        }
+        .gas-widget-high {
+          background-color: rgba(248, 113, 113, 0.3);
+          color: rgb(252, 165, 165);
+        }
+        .gas-widget-very-high {
+          background-color: rgba(239, 68, 68, 0.4);
+          color: rgb(252, 165, 165);
+        }
       }
     `}} />
   );
@@ -265,6 +389,10 @@ const SolidityEditor: React.FC = () => {
   const [showDetailedPanel, setShowDetailedPanel] = useState(true);
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [hoveredStepIndex, setHoveredStepIndex] = useState<number | null>(null);
+  const [lineGasUsage, setLineGasUsage] = useState<Record<number, number>>({});
+  const [gasWidgetIds, setGasWidgetIds] = useState<string[]>([]);
+  const [showDeploymentGas, setShowDeploymentGas] = useState(false);
+  const [showOnlyFunctionGas, setShowOnlyFunctionGas] = useState(true);
 
   const errors = compilationResult?.errors || [];
 
@@ -363,6 +491,7 @@ const SolidityEditor: React.FC = () => {
     // If there's no active trace or tracing is not visible, clear decorations and return
     if (!activeTraceResult || !isTraceDebuggerOpen) {
       setDecorations(model.deltaDecorations(oldDecorations, []));
+      setLineGasUsage({}); // Clear line gas usage
       return;
     }
 
@@ -737,33 +866,39 @@ const SolidityEditor: React.FC = () => {
       }
     }
 
-    // Add gas heatmap decorations based on execution data
+    // Calculate total gas usage per line
+    const newLineGasUsage: Record<number, number> = {};
+    let maxGasUsageLine = 0;
+    
     if (lineToSteps[currentFile.name] && showGasHeatmap) {
-      // Calculate total gas usage per line 
-      const lineGasUsage: Record<number, number> = {};
-      let maxGasUsageLine = 0;
-      
+      // Now calculate gas usage, but only for the current function if specified
       Object.entries(lineToSteps[currentFile.name]).forEach(([lineStr, steps]) => {
         const lineNum = parseInt(lineStr);
-        // Filter if function context is active
-        const relevantSteps = showOnlyCurrentFunction && currentFunction
-          ? steps.filter(step => {
-              if (step.sourceInfo && 'functionName' in step.sourceInfo) {
-                return step.sourceInfo.functionName === currentFunction;
-              }
-              return false;
-            })
-          : steps;
-          
+        
+        // Filter steps to only include those from the current function
+        const relevantSteps = steps.filter(step => {
+          if (showOnlyCurrentFunction && currentFunction) {
+            return step.sourceInfo && 
+                   'functionName' in step.sourceInfo && 
+                   step.sourceInfo.functionName === currentFunction;
+          }
+          return true; // If not filtering by function, include all steps
+        });
+        
+        // Skip if no relevant steps after filtering
+        if (relevantSteps.length === 0) {
+          return;
+        }
+        
         // Sum the gas costs for this line
         const totalGasForLine = relevantSteps.reduce((sum, step) => {
           const gasCost = step.gas_cost || 0;
           return sum + gasCost;
         }, 0);
         
-        // Only record lines with actual gas usage above a certain threshold
+        // Only record lines with actual gas usage
         if (totalGasForLine > 0) {
-          lineGasUsage[lineNum] = totalGasForLine;
+          newLineGasUsage[lineNum] = totalGasForLine;
           
           // Track the highest gas usage
           if (totalGasForLine > maxGasUsageLine) {
@@ -772,46 +907,10 @@ const SolidityEditor: React.FC = () => {
         }
       });
       
-      // Make sure we have a reasonable threshold for min gas display
-      // Only show lines that use at least 1% of the max gas line
-      const minGasThreshold = maxGasUsageLine * 0.01;
-      
-      // Apply heatmap based on relative gas usage
-      Object.entries(lineGasUsage).forEach(([lineStr, gasUsage]) => {
-        const lineNum = parseInt(lineStr);
-        
-        // Skip lines with minimal gas usage
-        if (gasUsage <= minGasThreshold) return;
-        
-        // Normalize against max gas and create buckets
-        const gasRatio = gasUsage / maxGasUsageLine;
-        let heatmapClass = '';
-        
-        if (gasRatio < 0.1) {
-          heatmapClass = 'gas-heatmap-very-low';
-        } else if (gasRatio < 0.25) {
-          heatmapClass = 'gas-heatmap-low';
-        } else if (gasRatio < 0.5) {
-          heatmapClass = 'gas-heatmap-medium';
-        } else if (gasRatio < 0.75) {
-          heatmapClass = 'gas-heatmap-high';
-        } else {
-          heatmapClass = 'gas-heatmap-very-high';
-        }
-        
-        // Create gas heatmap decoration
-        newDecorations.push({
-          range: new monaco.Range(
-            lineNum + 1, 1, 
-            lineNum + 1, 1
-          ),
-          options: {
-            isWholeLine: true,
-            className: heatmapClass,
-            hoverMessage: { value: `Gas Usage: ${gasUsage} (${Math.round(gasRatio * 100)}% of max)` }
-          }
-        });
-      });
+      // Update the state with the new line gas usage
+      setLineGasUsage(newLineGasUsage);
+    } else {
+      setLineGasUsage({}); // Clear line gas usage if gas heatmap is disabled
     }
 
     // Apply decorations
@@ -833,6 +932,127 @@ const SolidityEditor: React.FC = () => {
     highlightedLine,
     currentFile,
     showGasHeatmap,
+    showOnlyCurrentFunction,
+    currentFunction,
+    showOnlyFunctionGas
+  ]);
+
+  // Call this in the useEffect for content widgets
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current || !currentFile || !showGasHeatmap) {
+      return;
+    }
+
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    const model = editor.getModel();
+
+    if (!model) return;
+
+    // Clear previous widgets
+    gasWidgetIds.forEach(id => {
+      editor.removeContentWidget({ getId: () => id });
+    });
+    
+    const newWidgetIds: string[] = [];
+    
+    // Add gas widgets if we have gas data
+    if (Object.keys(lineGasUsage).length > 0) {
+      const maxGas = Math.max(...Object.values(lineGasUsage));
+      
+      // Get the steps for each line
+      const { sourceMapping } = activeTraceResult || {};
+      const lineToSteps = sourceMapping?.sourceContext?.lineToSteps?.[currentFile.name] || {};
+      
+      // Create a direct mapping of lines to functions for more reliable filtering
+      const lineToFunction: Record<number, string> = {};
+      
+      // First, map each line to its function
+      Object.entries(lineToSteps).forEach(([lineStr, steps]) => {
+        const lineNum = parseInt(lineStr);
+        
+        for (const step of steps) {
+          if (step.sourceInfo && 'functionName' in step.sourceInfo && step.sourceInfo.functionName) {
+            lineToFunction[lineNum] = step.sourceInfo.functionName;
+            break;
+          }
+        }
+      });
+      
+      console.log('Current function:', currentFunction);
+      console.log('Line to function mapping:', lineToFunction);
+      
+      // Now strictly filter widgets by function
+      Object.entries(lineGasUsage).forEach(([lineStr, gasUsage]) => {
+        const lineNum = parseInt(lineStr);
+        
+        // Skip this line if it's not in the current function
+        if (showOnlyCurrentFunction && currentFunction) {
+          const lineFunction = lineToFunction[lineNum];
+          
+          if (!lineFunction || lineFunction !== currentFunction) {
+            return; // Skip this line - it's not in the current function
+          }
+        }
+        
+        // Format and display the gas widget
+        const formattedGas = gasUsage >= 1000 ? 
+          `${(gasUsage / 1000).toFixed(1)}k` : 
+          gasUsage.toString();
+        
+        // Determine color class
+        const gasRatio = gasUsage / maxGas;
+        let gasClass = '';
+        
+        if (gasRatio < 0.1) {
+          gasClass = 'gas-widget-very-low';
+        } else if (gasRatio < 0.25) {
+          gasClass = 'gas-widget-low';
+        } else if (gasRatio < 0.5) {
+          gasClass = 'gas-widget-medium';
+        } else if (gasRatio < 0.75) {
+          gasClass = 'gas-widget-high';
+        } else {
+          gasClass = 'gas-widget-very-high';
+        }
+        
+        const widgetId = `gas-widget-${lineNum}`;
+        newWidgetIds.push(widgetId);
+        
+        const domNode = document.createElement('div');
+        domNode.className = `gas-widget ${gasClass}`;
+        domNode.innerHTML = `${formattedGas} gas`;
+        
+        editor.addContentWidget({
+          getId: () => widgetId,
+          getDomNode: () => domNode,
+          getPosition: () => {
+            return {
+              position: {
+                lineNumber: lineNum + 1,
+                column: model.getLineMaxColumn(lineNum + 1)
+              },
+              preference: [monaco.editor.ContentWidgetPositionPreference.EXACT]
+            };
+          }
+        });
+      });
+    }
+    
+    setGasWidgetIds(newWidgetIds);
+    
+    return () => {
+      if (editor) {
+        newWidgetIds.forEach(id => {
+          editor.removeContentWidget({ getId: () => id });
+        });
+      }
+    };
+  }, [
+    lineGasUsage, 
+    showGasHeatmap, 
+    currentFile, 
+    activeTraceResult,
     showOnlyCurrentFunction,
     currentFunction
   ]);
@@ -997,6 +1217,76 @@ const SolidityEditor: React.FC = () => {
       }
     }
   }, [activeTraceResult, setCurrentFunction]);
+
+  // Add a toggle button to the UI
+  <button 
+    onClick={() => setShowDeploymentGas(!showDeploymentGas)}
+    className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded"
+  >
+    {showDeploymentGas ? "Hide Deployment Gas" : "Show Deployment Gas"}
+  </button>
+
+  // In the gas calculation logic, check if the step is from deployment or runtime
+  const isDeploymentStep = (step: any) => {
+    // Check if this step is from deployment bytecode
+    // This could be based on PC range, function context, or other metadata
+    return !step.sourceInfo || !step.sourceInfo.functionName;
+  };
+
+  // Add a helper function to check if a step is within a function context
+  const isInFunctionContext = (step: any): boolean => {
+    return step.sourceInfo && 
+           'functionName' in step.sourceInfo && 
+           step.sourceInfo.functionName !== undefined && 
+           step.sourceInfo.functionName !== '';
+  };
+
+  // Make sure we preserve the step inspector state
+  useEffect(() => {
+    if (activeTraceResult && isTraceDebuggerOpen) {
+      // Don't reset the panel state when a new trace is loaded
+      setShowDetailedPanel(true);
+      
+      // Keep the current function selected if it exists in the new trace
+      if (currentFunction) {
+        const { sourceMapping } = activeTraceResult;
+        if (sourceMapping?.sourceContext?.functionToSteps) {
+          const functionNames = Object.keys(sourceMapping.sourceContext.functionToSteps);
+          const normalizedCurrentFn = currentFunction.includes('(') 
+            ? currentFunction.substring(0, currentFunction.indexOf('(')) 
+            : currentFunction;
+            
+          // Check if the current function exists in the new trace
+          const functionExists = functionNames.some(fn => {
+            const normalizedFn = fn.includes('(') 
+              ? fn.substring(0, fn.indexOf('(')) 
+              : fn;
+            return normalizedFn === normalizedCurrentFn;
+          });
+          
+          // If the function doesn't exist in the new trace, find the main function
+          if (!functionExists) {
+            // Try to find the main function from the trace
+            const mainFunction = functionNames.find(fn => 
+              fn.endsWith(':main') || 
+              fn.includes('.main') || 
+              fn.endsWith(':constructor')
+            );
+            
+            if (mainFunction) {
+              setCurrentFunction(mainFunction);
+            }
+          }
+        }
+      }
+    }
+  }, [activeTraceResult, isTraceDebuggerOpen]);
+
+  // Ensure we're setting showOnlyCurrentFunction to true by default
+  useEffect(() => {
+    // Set default values when component mounts
+    setShowOnlyCurrentFunction(true);
+  }, []);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -1167,6 +1457,14 @@ const SolidityEditor: React.FC = () => {
           <CompileErrorDisplay errors={relevantErrors} />
         </div>
       )}
+      <div className="flex items-center space-x-2 mb-2">
+        <button 
+          onClick={() => setShowGasHeatmap(!showGasHeatmap)}
+          className={`text-xs px-2 py-1 ${showGasHeatmap ? 'bg-green-100 hover:bg-green-200' : 'bg-gray-100 hover:bg-gray-200'} rounded`}
+        >
+          {showGasHeatmap ? "Hide Gas Usage" : "Show Gas Usage"}
+        </button>
+      </div>
     </div>
   );
 };

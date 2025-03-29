@@ -78,6 +78,7 @@ export const OPCODE_NAMES: Record<number, string> = {
   0x5b: 'JUMPDEST',
   
   // 0x60s & 0x70s: Push Operations
+  0x5f: 'PUSH0',
   0x60: 'PUSH1',
   0x61: 'PUSH2',
   0x62: 'PUSH3',
