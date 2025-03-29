@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import { AppProvider } from "./providers/AppContextProvider";
+import { TracingProvider } from "./contexts/TracingContext";
 import { randomUUID } from "crypto";
 import { FileFunctionCalls } from "./types";
 import { getRandomAddress } from "./utils";
@@ -65,7 +66,9 @@ export default function RootLayout({
         initialFiles={initialFiles}
         initialFunctionCalls={initialFunctionCalls}
       >
-        <body>{children}</body>
+        <TracingProvider>
+          <body>{children}</body>
+        </TracingProvider>
       </AppProvider>
       <Analytics />
     </html>

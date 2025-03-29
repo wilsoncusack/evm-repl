@@ -439,54 +439,86 @@ export function createPCToSourceMap(
  * @returns Array of function ranges
  */
 export function extractFunctionRanges(source: string): { name: string; start: number; end: number; line: number; endLine: number }[] {
-  const functions = [];
-  // Match function declarations, including visibility and modifiers
-  const functionRegex = /function\s+(\w+)\s*\([^)]*\)(?:\s+(?:external|public|internal|private|pure|view|payable|virtual|override))*\s*(?:{|returns)/g;
-  let match;
+  // Extract function ranges from Solidity source
+  const functionRanges: { name: string; start: number; end: number; line: number; endLine: number }[] = [];
   
-  while ((match = functionRegex.exec(source)) !== null) {
-    const functionName = match[1];
-    const startOffset = match.index;
-    const { line } = calculateLineAndColumn(source, startOffset);
+  try {
+    // Regular expression to match function declarations in Solidity
+    // This pattern has been improved to better handle variations in function syntax
+    const functionPattern = /function\s+(\w+)\s*\(([^)]*)\)(?:\s+(?:external|public|internal|private|pure|view|payable|virtual|override))*\s*(?:returns\s*\([^)]*\))?\s*{/g;
     
-    // Find the function body opening brace
-    let braceIndex = source.indexOf('{', match.index + match[0].length);
-    if (source.substring(match.index + match[0].length, braceIndex).includes('returns')) {
-      // If there's a returns clause, find the opening brace after it
-      braceIndex = source.indexOf('{', braceIndex);
+    // Find all line break positions to calculate line numbers
+    const lineBreaks: number[] = [];
+    let lineBreakIndex = source.indexOf('\n');
+    while (lineBreakIndex !== -1) {
+      lineBreaks.push(lineBreakIndex);
+      lineBreakIndex = source.indexOf('\n', lineBreakIndex + 1);
     }
     
-    if (braceIndex === -1) {
-      console.warn(`Could not find opening brace for function ${functionName}`);
-      continue;
-    }
-    
-    // Find the closing brace - handle nested braces
-    let openBraces = 1;
-    let endOffset = braceIndex + 1;
-    
-    for (let i = braceIndex + 1; i < source.length; i++) {
-      if (source[i] === '{') openBraces++;
-      if (source[i] === '}') openBraces--;
-      
-      if (openBraces === 0) {
-        endOffset = i + 1;
-        break;
+    // Helper function to get line number from character offset
+    const getLineNumber = (offset: number): number => {
+      let line = 0;
+      for (let i = 0; i < lineBreaks.length; i++) {
+        if (lineBreaks[i] >= offset) {
+          break;
+        }
+        line++;
       }
+      return line;
+    };
+    
+    // Find all function declarations
+    let match;
+    while ((match = functionPattern.exec(source)) !== null) {
+      const functionName = match[1];
+      const startOffset = match.index;
+      
+      // Find the matching closing brace for this function
+      let openBraces = 1;
+      let endOffset = match.index + match[0].length;
+      
+      // Special case for tiny functions that might be on a single line with a simple return
+      const singleLineReturnPattern = new RegExp(`function\\s+${functionName}[^{]*{\\s*return[^;]*;\\s*}`, 'g');
+      singleLineReturnPattern.lastIndex = match.index;
+      const singleLineMatch = singleLineReturnPattern.exec(source);
+      
+      if (singleLineMatch && singleLineMatch.index === match.index) {
+        // This is a single-line function with a simple return
+        endOffset = singleLineMatch.index + singleLineMatch[0].length - 1;
+      } else {
+        // Normal multi-line or complex function - count braces
+        for (let i = endOffset; i < source.length; i++) {
+          if (source[i] === '{') {
+            openBraces++;
+          } else if (source[i] === '}') {
+            openBraces--;
+            if (openBraces === 0) {
+              endOffset = i;
+              break;
+            }
+          }
+        }
+      }
+      
+      const startLine = getLineNumber(startOffset);
+      const endLine = getLineNumber(endOffset);
+      
+      functionRanges.push({
+        name: functionName,
+        start: startOffset,
+        end: endOffset,
+        line: startLine,
+        endLine: endLine
+      });
+      
+      console.log(`Detected function: ${functionName} at lines ${startLine+1}-${endLine+1}, offsets ${startOffset}-${endOffset}`);
+      console.log(`Function code: "${source.substring(startOffset, Math.min(startOffset + 40, endOffset))}..."`);
     }
     
-    const { line: endLine } = calculateLineAndColumn(source, endOffset);
-    
-    functions.push({
-      name: functionName,
-      start: startOffset,
-      end: endOffset,
-      line,
-      endLine
-    });
-    
-    console.log(`Found function ${functionName} at offset ${startOffset}-${endOffset}, lines ${line}-${endLine}`);
+    console.log(`Total functions detected: ${functionRanges.length}`);
+  } catch (error) {
+    console.error('Error extracting function ranges:', error);
   }
   
-  return functions;
+  return functionRanges;
 } 

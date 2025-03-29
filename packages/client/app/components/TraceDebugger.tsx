@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { EnhancedFunctionCallResult, EnhancedTraceStep } from "../types/sourceMapping";
+import { useTracing } from "../hooks/useTracing";
 
 interface TraceDebuggerProps {
   result: EnhancedFunctionCallResult;
@@ -11,10 +12,19 @@ interface TraceDebuggerProps {
  * Debug component to visualize and verify the source-to-trace mapping
  */
 const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
+  const { setHighlightedLine, setHighlightedStepIndex } = useTracing();
   const [activeTab, setActiveTab] = useState<'overview' | 'functions' | 'sourceLine' | 'steps'>('overview');
   const [selectedFunction, setSelectedFunction] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
+  
+  // Clear highlight when component unmounts
+  useEffect(() => {
+    return () => {
+      setHighlightedLine(null);
+      setHighlightedStepIndex(null);
+    };
+  }, [setHighlightedLine, setHighlightedStepIndex]);
   
   if (!result.sourceMapping) {
     return (
@@ -25,6 +35,46 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
   }
   
   const { sourceContext, enhancedTraces } = result.sourceMapping;
+  
+  // Type guard to check if sourceInfo has mappings or is unmapped
+  const isMappedSourceInfo = (sourceInfo: any): sourceInfo is {
+    filePath: string;
+    offset: number;
+    length: number;
+    line: number;
+    column: number;
+    lineIndex?: number;
+    jumpType: string;
+    sourceLine: string;
+    functionName?: string;
+    isOutOfBounds?: boolean;
+    isDuplicate?: boolean;
+    unmapped?: boolean;
+  } => {
+    return sourceInfo && 'line' in sourceInfo && !('unmapped' in sourceInfo);
+  };
+  
+  // Type guard for unmapped source info
+  const isUnmappedSourceInfo = (sourceInfo: any): sourceInfo is {
+    unmapped: true;
+    pc: number;
+  } => {
+    return sourceInfo && 'unmapped' in sourceInfo;
+  };
+  
+  // Handle mouse over for steps - highlight the corresponding source line
+  const handleStepMouseEnter = (step: EnhancedTraceStep, index: number) => {
+    if (step.sourceInfo && isMappedSourceInfo(step.sourceInfo)) {
+      setHighlightedLine(step.sourceInfo.line);
+      setHighlightedStepIndex(index);
+    }
+  };
+  
+  // Handle mouse leave - clear highlight
+  const handleStepMouseLeave = () => {
+    setHighlightedLine(null);
+    setHighlightedStepIndex(null);
+  };
   
   const renderOverview = () => (
     <div>
@@ -213,20 +263,76 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
     );
   };
   
-  const renderStepsView = () => {
-    // Extract all steps from all traces
-    const allSteps: (EnhancedTraceStep & { arenaIdx: number })[] = [];
+  // Add a function to format call hierarchies
+  const formatCallInfo = (step: EnhancedTraceStep): string => {
+    if (!step || !step.sourceInfo) return '';
     
-    if (enhancedTraces.arena) {
-      enhancedTraces.arena.forEach((arenaItem, arenaIdx) => {
-        if (arenaItem.trace.steps) {
-          arenaItem.trace.steps.forEach((step) => {
-            allSteps.push({ ...step as EnhancedTraceStep, arenaIdx });
-          });
-        }
-      });
+    const functionName = step.sourceInfo.functionName || 'unknown';
+    
+    // Format different types of calls based on opcode
+    if (step.opName) {
+      if (step.opName === 'CALL' || step.opName === 'STATICCALL' || step.opName === 'DELEGATECALL') {
+        return `[${functionName}] => [External Call]`;
+      }
+      if (step.opName === 'SLOAD') {
+        return `${functionName}[Storage Read]`;
+      }
+      if (step.opName === 'SSTORE') {
+        return `${functionName}[Storage Write]`;
+      }
+      if (step.opName === 'RETURN') {
+        return `${functionName} => [Return]`;
+      }
     }
     
+    return functionName;
+  };
+  
+  // Add indentation to calls to show hierarchy
+  const getCallIndentation = (step: EnhancedTraceStep, depth: number): string => {
+    if (!step || depth === 0) return '';
+    
+    // Use different indicators based on the opcode category
+    let indicator = '→';
+    if (step.category === 'CALL') indicator = '⤷';
+    if (step.category === 'STORAGE') indicator = '⇝';
+    if (step.category === 'JUMP') indicator = '↳';
+    
+    return '  '.repeat(depth - 1) + indicator + ' ';
+  };
+  
+  // Enhance renderStepsView to show call hierarchies
+  const renderStepsView = () => {
+    if (!result.sourceMapping) {
+      return (
+        <div>
+          <h3 className="text-lg font-semibold mb-2">All Execution Steps</h3>
+          <p className="text-gray-500">No source mapping available</p>
+        </div>
+      );
+    }
+
+    const allSteps = result.traces.arena.flatMap(item => 
+      item.trace.steps || []
+    ).filter(Boolean) as EnhancedTraceStep[];
+    
+    // Track call depth
+    let currentDepth = 0;
+    const stepDepths: Record<number, number> = {};
+    
+    // Analyze steps to determine depth
+    allSteps.forEach((step, idx) => {
+      if (step.opName === 'CALL' || step.opName === 'STATICCALL' || step.opName === 'DELEGATECALL') {
+        stepDepths[idx] = currentDepth;
+        currentDepth++;
+      } else if (step.opName === 'RETURN' && currentDepth > 0) {
+        currentDepth--;
+        stepDepths[idx] = currentDepth;
+      } else {
+        stepDepths[idx] = currentDepth;
+      }
+    });
+
     return (
       <div>
         <h3 className="text-lg font-semibold mb-2">All Execution Steps</h3>
@@ -240,43 +346,63 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
                 <th className="p-2 text-left">Opcode</th>
                 <th className="p-2 text-left">Gas</th>
                 <th className="p-2 text-left">Line</th>
-                <th className="p-2 text-left">Source</th>
-                <th className="p-2 text-left">Function</th>
+                <th className="p-2 text-left">Call / Operation</th>
                 <th className="p-2 text-left">Notes</th>
               </tr>
             </thead>
             <tbody>
-              {allSteps.map((step, idx) => (
-                <tr 
-                  key={idx} 
-                  className={`border-t border-gray-600 ${getCategoryClass(step.category)} ${
-                    step.sourceInfo?.isOutOfBounds ? 'bg-red-500 bg-opacity-20' : ''
-                  } ${
-                    step.sourceInfo?.isDuplicate ? 'bg-yellow-500 bg-opacity-20' : ''
-                  } ${
-                    step.sourceInfo?.unmapped ? 'bg-gray-500 bg-opacity-20' : ''
-                  }`}
-                >
-                  <td className="p-2">{idx}</td>
-                  <td className="p-2">{step.pc}</td>
-                  <td className="p-2 font-mono">{step.opName}</td>
-                  <td className="p-2">{step.gas_used}</td>
-                  <td className="p-2">{step.sourceInfo?.line !== undefined ? step.sourceInfo.line + 1 : 'N/A'}</td>
-                  <td className="p-2 font-mono truncate max-w-xs">{step.sourceInfo?.sourceLine || 'N/A'}</td>
-                  <td className="p-2">{step.sourceInfo?.functionName || 'N/A'}</td>
-                  <td className="p-2">
-                    {step.sourceInfo?.isOutOfBounds && (
-                      <span className="text-red-400">Out of bounds</span>
-                    )}
-                    {step.sourceInfo?.isDuplicate && (
-                      <span className="text-yellow-400">Duplicate</span>
-                    )}
-                    {step.sourceInfo?.unmapped && (
-                      <span className="text-gray-400">Unmapped</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {allSteps.map((step, idx) => {
+                // Determine if this step is mapped or unmapped
+                const isMapped = step.sourceInfo && isMappedSourceInfo(step.sourceInfo);
+                const isUnmapped = step.sourceInfo && isUnmappedSourceInfo(step.sourceInfo);
+                
+                // Get styles based on the type of source info
+                let rowClasses = `border-t border-gray-600 ${getCategoryClass(step.category)}`;
+                if (isMapped) {
+                  if (step.sourceInfo.isOutOfBounds) rowClasses += ' bg-red-500 bg-opacity-20';
+                  if (step.sourceInfo.isDuplicate) rowClasses += ' bg-yellow-500 bg-opacity-20';
+                } else if (isUnmapped) {
+                  rowClasses += ' bg-gray-500 bg-opacity-20';
+                }
+                
+                const depth = stepDepths[idx] || 0;
+                
+                return (
+                  <tr 
+                    key={idx} 
+                    className={rowClasses}
+                    onMouseEnter={() => handleStepMouseEnter(step, idx)}
+                    onMouseLeave={handleStepMouseLeave}
+                  >
+                    <td className="p-2">{idx}</td>
+                    <td className="p-2 font-mono">{step.pc}</td>
+                    <td className="p-2 font-mono">{step.opName}</td>
+                    <td className="p-2">{step.gas_used}</td>
+                    <td className="p-2">
+                      {isMapped ? step.sourceInfo.line + 1 : 'N/A'}
+                    </td>
+                    <td className="p-2 font-mono truncate max-w-xs">
+                      {isMapped ? (
+                        <span className="text-indigo-300">
+                          {getCallIndentation(step, depth)}
+                          {formatCallInfo(step)}
+                        </span>
+                      ) : 'N/A'}
+                    </td>
+                    <td className="p-2">
+                      {isMapped && step.sourceInfo.isOutOfBounds && (
+                        <span className="text-red-400">Out of bounds</span>
+                      )}
+                      {isMapped && step.sourceInfo.isDuplicate && (
+                        <span className="text-yellow-400">Duplicate</span>
+                      )}
+                      {isUnmapped && (
+                        <span className="text-gray-400">Unmapped</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

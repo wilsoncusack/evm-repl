@@ -5,6 +5,7 @@ import { useAppContext } from "../hooks/useAppContext";
 import { decodeRevertData } from "../utils/decodeRevertData";
 import TraceDebugger from "./TraceDebugger";
 import { EnhancedFunctionCallResult } from "../types/sourceMapping";
+import { useTracing } from "../hooks/useTracing";
 
 interface ResultDisplayProps {
   result: EnhancedFunctionCallResult;
@@ -12,8 +13,57 @@ interface ResultDisplayProps {
 
 const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
   const { currentFileCompilationResult } = useAppContext();
+  const { 
+    setActiveTraceResult, 
+    activeTraceResult,
+    setIsTraceDebuggerOpen,
+    isTraceDebuggerOpen
+  } = useTracing();
   const [showTraces, setShowTraces] = useState(false);
   const [showTraceDebugger, setShowTraceDebugger] = useState(false);
+
+  // Check if this trace is currently active in the editor
+  const isActiveInEditor = activeTraceResult === result;
+
+  // Toggle this trace in the editor with logging
+  const toggleTraceInEditor = () => {
+    if (isActiveInEditor) {
+      console.log('Deactivating trace in editor');
+      setActiveTraceResult(null);
+      setIsTraceDebuggerOpen(false);
+    } else {
+      console.log('Activating trace in editor:', result.call);
+      console.log('Source mapping available:', !!result.sourceMapping);
+      
+      // Log some details about the source mapping if available
+      if (result.sourceMapping) {
+        const { sourceContext } = result.sourceMapping;
+        console.log('Source files:', Object.keys(sourceContext.sourceFiles));
+        console.log('Function mappings:', Object.keys(sourceContext.functionToSteps).join(', '));
+        
+        // Examine full trace for SSTORE operations
+        const allSteps = Object.values(sourceContext.functionToSteps)
+          .flat() as any[];
+        
+        console.log(`Total execution steps: ${allSteps.length}`);
+        
+        // Find all SSTORE operations in the trace
+        const sstoreOps = allSteps.filter(step => step.opName === 'SSTORE');
+        console.log(`Found ${sstoreOps.length} SSTORE operations in total:`, sstoreOps);
+        
+        // Check the line mapping for all steps
+        const lineToStepsEntries = Object.entries(sourceContext.lineToSteps);
+        console.log('Line to steps mapping structure:', 
+          lineToStepsEntries.map(([file, lineMap]) => 
+            `${file}: ${Object.keys(lineMap).length} lines mapped`
+          )
+        );
+      }
+      
+      setActiveTraceResult(result);
+      setIsTraceDebuggerOpen(true);
+    }
+  };
 
   // Check if the transaction reverted
   const hasReverted = () => {
@@ -127,12 +177,12 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
           ))}
       </div>
       
-      <div className="mt-4 space-y-2">
+      <div className="mt-4 space-x-2 flex flex-wrap">
         {result.traces && (
           <button
             type="button"
             onClick={() => setShowTraces(!showTraces)}
-            className="px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors mr-2"
+            className="px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors mb-2"
           >
             {showTraces ? "Hide Basic Traces" : "Show Basic Traces"}
           </button>
@@ -142,9 +192,19 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
           <button
             type="button"
             onClick={() => setShowTraceDebugger(!showTraceDebugger)}
-            className="px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors"
+            className="px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors mb-2"
           >
             {showTraceDebugger ? "Hide Source Trace Debugger" : "Show Source Trace Debugger"}
+          </button>
+        )}
+        
+        {result.sourceMapping && (
+          <button
+            type="button"
+            onClick={toggleTraceInEditor}
+            className={`px-2 py-1 ${isActiveInEditor ? 'bg-success' : 'bg-accent'} text-white rounded hover:bg-accent-hover transition-colors mb-2`}
+          >
+            {isActiveInEditor ? "Hide Trace in Editor" : "Show Trace in Editor"}
           </button>
         )}
 

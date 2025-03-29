@@ -173,7 +173,7 @@ export const AppProvider: React.FC<{
             chainId: forkConfig.chainId,
             blockNumber: forkConfig.blockNumber,
           },
-          traceMode: 'jump'
+          traceMode: 'debug'
         },
       );
 
