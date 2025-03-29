@@ -262,7 +262,7 @@ const SolidityEditor: React.FC = () => {
   const monacoRef = useRef<any>(null);
   const [copied, setCopied] = useState(false);
   const [decorations, setDecorations] = useState<string[]>([]);
-  const [showDetailedPanel, setShowDetailedPanel] = useState(false);
+  const [showDetailedPanel, setShowDetailedPanel] = useState(true);
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [hoveredStepIndex, setHoveredStepIndex] = useState<number | null>(null);
 
@@ -927,6 +927,28 @@ const SolidityEditor: React.FC = () => {
 
     console.log("Active trace loaded:", activeTraceResult.call);
     
+    // Ensure details panel is shown by default when a trace is loaded
+    setShowDetailedPanel(true);
+    
+    // Update current function when trace changes
+    if (activeTraceResult.call) {
+      // Extract just the function name part
+      const callName = activeTraceResult.call;
+      const parenIndex = callName.indexOf('(');
+      const dotIndex = callName.lastIndexOf('.');
+      
+      let functionName = callName;
+      if (parenIndex > 0) {
+        functionName = callName.substring(0, parenIndex);
+      }
+      if (dotIndex > 0) {
+        functionName = functionName.substring(dotIndex + 1);
+      }
+      
+      setCurrentFunction(functionName);
+      console.log("Updated current function to:", functionName);
+    }
+    
     // Debug: Analyze all steps for SSTORE operations
     const { sourceContext } = activeTraceResult.sourceMapping;
     const allSteps = Object.values(sourceContext.functionToSteps).flat() as any[];
@@ -974,7 +996,7 @@ const SolidityEditor: React.FC = () => {
         }
       }
     }
-  }, [activeTraceResult]);
+  }, [activeTraceResult, setCurrentFunction]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -1023,48 +1045,15 @@ const SolidityEditor: React.FC = () => {
             
             {updatedActiveTraceResult && updatedIsTraceDebuggerOpen && (
               <div className="flex items-center space-x-2">
-                {/* Gas control and function filter */}
-                {showGasHeatmap && (
-                  <div className="flex items-center gap-2 px-2 py-0.5 border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800/50">
-                    <div className="flex items-center">
-                      <div className="h-2.5 w-2.5 border-l-2 border-green-400 mr-0.5"></div>
-                      <div className="h-2.5 w-2.5 border-l-2 border-yellow-400 mr-0.5"></div>
-                      <div className="h-2.5 w-2.5 border-l-2 border-red-500 mr-1"></div>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Gas</span>
-                    </div>
-                  </div>
-                )}
                 <button
                   onClick={() => setShowDetailedPanel(!showDetailedPanel)}
                   className="text-xs px-3 py-1.5 flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded border border-blue-200 dark:border-blue-800 transition-colors"
                 >
                   <span className="font-medium">{updatedActiveTraceResult.call}</span>
                   <span className="text-xs opacity-70">
-                    {showDetailedPanel ? '◀ Hide Details' : '▶ Show Details'}
+                    {showDetailedPanel ? '◀' : '▶'}
                   </span>
                 </button>
-                <div className="flex items-center space-x-2">
-                  <label className="flex items-center cursor-pointer text-gray-600 dark:text-gray-300">
-                    <input
-                      type="checkbox"
-                      className="w-3 h-3 mr-1"
-                      checked={showGasHeatmap}
-                      onChange={() => setShowGasHeatmap(!showGasHeatmap)}
-                    />
-                    <span className="text-xs">Gas</span>
-                  </label>
-                  {currentFunction && (
-                    <label className="flex items-center cursor-pointer text-gray-600 dark:text-gray-300">
-                      <input
-                        type="checkbox"
-                        className="w-3 h-3 mr-1"
-                        checked={showOnlyCurrentFunction}
-                        onChange={() => setShowOnlyCurrentFunction(!showOnlyCurrentFunction)}
-                      />
-                      <span className="text-xs">Func only</span>
-                    </label>
-                  )}
-                </div>
               </div>
             )}
           </div>
@@ -1116,7 +1105,7 @@ const SolidityEditor: React.FC = () => {
               <div className="bg-gray-100 dark:bg-gray-800 p-2 sticky top-0 z-20 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200">
                   <div className="flex items-center">
-                    <span>{currentFunction ? currentFunction : 'Execution Steps'}</span>
+                    <span>{updatedActiveTraceResult?.call || 'Execution Steps'}</span>
                     {selectedLine !== null && (
                       <span className="ml-1.5 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200 px-1.5 py-0.5 rounded-sm">
                         Line {selectedLine + 1}
