@@ -39,6 +39,43 @@ const EditorStyles = () => {
       .executed-line-gutter-high:before {
         background-color: rgba(59, 130, 246, 0.9);
       }
+      
+      /* Gas heatmap colors - Updated for better visibility */
+      .gas-heatmap-very-low {
+        border-left: 4px solid rgba(74, 222, 128, 0.7);
+      }
+      .gas-heatmap-low {
+        border-left: 4px solid rgba(74, 222, 128, 0.8);
+      }
+      .gas-heatmap-medium {
+        border-left: 4px solid rgba(250, 204, 21, 0.8);
+      }
+      .gas-heatmap-high {
+        border-left: 4px solid rgba(248, 113, 113, 0.8);
+      }
+      .gas-heatmap-very-high {
+        border-left: 4px solid rgba(239, 68, 68, 0.9);
+      }
+      
+      /* Dark mode improved gas heatmap colors */
+      @media (prefers-color-scheme: dark) {
+        .gas-heatmap-very-low {
+          border-left: 5px solid rgba(74, 222, 128, 0.7);
+        }
+        .gas-heatmap-low {
+          border-left: 5px solid rgba(74, 222, 128, 0.8);
+        }
+        .gas-heatmap-medium {
+          border-left: 5px solid rgba(250, 204, 21, 0.8);
+        }
+        .gas-heatmap-high {
+          border-left: 5px solid rgba(248, 113, 113, 0.8);
+        }
+        .gas-heatmap-very-high {
+          border-left: 5px solid rgba(239, 68, 68, 0.9);
+        }
+      }
+      
       .execution-count {
         font-size: 0.75rem;
         opacity: 0.8;
@@ -71,54 +108,6 @@ const EditorStyles = () => {
       .active-function-range {
         background-color: rgba(100, 100, 100, 0.05);
         border-left: 2px solid rgba(100, 100, 100, 0.2);
-      }
-      .glyph-margin-default {
-        background-color: #9ca3af;
-        border-radius: 50%;
-        width: 10px !important;
-        height: 10px !important;
-        margin-top: 5px;
-        margin-left: 5px;
-      }
-      .glyph-margin-storage {
-        background-color: #6366f1;
-        border-radius: 50%;
-        width: 10px !important;
-        height: 10px !important;
-        margin-top: 5px;
-        margin-left: 5px;
-      }
-      .glyph-margin-call {
-        background-color: #eab308;
-        border-radius: 50%;
-        width: 10px !important;
-        height: 10px !important;
-        margin-top: 5px;
-        margin-left: 5px;
-      }
-      .glyph-margin-jump {
-        background-color: #ec4899;
-        border-radius: 50%;
-        width: 10px !important;
-        height: 10px !important;
-        margin-top: 5px;
-        margin-left: 5px;
-      }
-      .glyph-margin-memory {
-        background-color: #10b981;
-        border-radius: 50%;
-        width: 10px !important;
-        height: 10px !important;
-        margin-top: 5px;
-        margin-left: 5px;
-      }
-      .glyph-margin-flow {
-        background-color: #ef4444;
-        border-radius: 50%;
-        width: 10px !important;
-        height: 10px !important;
-        margin-top: 5px;
-        margin-left: 5px;
       }
     `}} />
   );
@@ -166,126 +155,89 @@ const DetailedTraceStep: React.FC<{
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
 }> = ({ step, index, isHighlighted, onMouseEnter, onMouseLeave }) => {
+  const [showStack, setShowStack] = useState(false);
   const opName = step.opName || 'UNKNOWN';
   const gasCost = step.gas_cost !== undefined ? step.gas_cost : 'n/a';
-  const pc = step.pc !== undefined ? step.pc : 'n/a';
-  const line = step.sourceInfo?.line !== undefined ? step.sourceInfo.line + 1 : 'N/A';
   
   // Enhanced operation classification
   const isStorageOp = opName === 'SSTORE' || opName === 'SLOAD';
   const isCallOp = opName === 'CALL' || opName === 'STATICCALL' || opName === 'DELEGATECALL';
-  const isCreateOp = opName === 'CREATE' || opName === 'CREATE2';
-  const isJumpOp = opName === 'JUMP' || opName === 'JUMPI' || opName === 'JUMPDEST';
-  const isMemoryOp = opName === 'MLOAD' || opName === 'MSTORE' || opName === 'MSTORE8';
-  const isStackManipulation = opName.startsWith('DUP') || opName.startsWith('SWAP') || opName === 'POP' || opName === 'PUSH';
-  const isGasIntensive = gasCost !== 'n/a' && parseInt(gasCost.toString()) > 1000;
-  
-  // Get a descriptive label for the operation type
-  const getOperationTypeLabel = () => {
-    if (isStorageOp) return 'Storage Operation';
-    if (isCallOp) return 'Contract Call';
-    if (isCreateOp) return 'Contract Creation';
-    if (isJumpOp) return 'Control Flow';
-    if (isMemoryOp) return 'Memory Access';
-    if (isStackManipulation) return 'Stack Manipulation';
-    return step.category || 'Other Operation';
-  };
   
   // Get background color based on operation type
   const getBackgroundClass = () => {
-    if (isHighlighted) return 'bg-yellow-100 dark:bg-yellow-900';
+    if (isHighlighted) return 'bg-yellow-100 dark:bg-yellow-900/40';
     if (isStorageOp) return 'bg-purple-50 dark:bg-purple-900/20';
     if (isCallOp) return 'bg-amber-50 dark:bg-amber-900/20';
-    if (isGasIntensive) return 'bg-red-50 dark:bg-red-900/20';
-    if (isCreateOp) return 'bg-blue-50 dark:bg-blue-900/20';
     return '';
   };
   
   return (
     <div 
-      className={`p-2 text-xs border-b ${getBackgroundClass()}`}
+      className={`p-1.5 text-xs border-b ${getBackgroundClass()} transition-colors`}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <div className="font-semibold flex items-center justify-between">
-        <div className="flex items-center">
-          <span>Step #{index + 1}: {opName} (PC: {pc})</span>
-          {isStorageOp && (
-            <span className="ml-1 text-xs bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100 px-1 rounded">
-              STORAGE
-            </span>
-          )}
-          {isCallOp && (
-            <span className="ml-1 text-xs bg-amber-100 text-amber-800 dark:bg-amber-800 dark:text-amber-100 px-1 rounded">
-              CALL
-            </span>
-          )}
-          {isGasIntensive && !isStorageOp && !isCallOp && (
-            <span className="ml-1 text-xs bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100 px-1 rounded">
-              HIGH GAS
-            </span>
-          )}
+      <div className="flex items-center justify-between">
+        <div className="font-medium flex items-center space-x-1">
+          <span className="opacity-70">{index + 1}:</span>
+          <span className="font-mono">{opName}</span>
         </div>
-        <span className="text-xs font-mono bg-gray-100 dark:bg-gray-800 px-1 rounded">
+        <span className="text-[10px] font-mono bg-gray-100 dark:bg-gray-800/80 px-1 rounded">
           {gasCost} gas
         </span>
       </div>
       
-      <div className="grid grid-cols-2 gap-1 mt-1">
-        <div>Line: {line}</div>
-        <div>Type: {getOperationTypeLabel()}</div>
-        
-        {step.storage_change && Object.keys(step.storage_change).length > 0 && (
-          <div className="col-span-2 mt-1 p-1 bg-purple-50 dark:bg-purple-900/20 rounded">
-            <div className="font-medium">Storage Changes:</div>
-            {Object.entries(step.storage_change).map(([slot, value]: [string, any], i) => (
-              <div key={i} className="ml-2 font-mono">
-                Slot: {slot}
-                <br />
-                New Value: {typeof value === 'string' ? value : JSON.stringify(value)}
-              </div>
-            ))}
-          </div>
-        )}
-        
-        {step.stack && step.stack.length > 0 && (
-          <div className="col-span-2 mt-1">
-            <div className="font-medium">Stack ({step.stack.length} items, showing top):</div>
-            {step.stack.slice(-Math.min(5, step.stack.length)).map((item: string, i: number) => (
-              <div key={i} className="ml-2 font-mono text-xs">
-                {step.stack.length - i - 1}: {item}
-              </div>
-            ))}
-            
-            {/* For SSTORE operations, explain what the stack values mean */}
-            {opName === 'SSTORE' && step.stack.length >= 2 && (
-              <div className="mt-1 p-1 bg-blue-50 dark:bg-blue-900/20 rounded text-xs">
-                <div className="font-medium">SSTORE Operation:</div>
-                <div>Storage Slot: {step.stack[step.stack.length - 2]}</div>
-                <div>Value to Store: {step.stack[step.stack.length - 1]}</div>
-              </div>
-            )}
-            
-            {/* For SLOAD operations, explain what the stack value means */}
-            {opName === 'SLOAD' && step.stack.length >= 1 && (
-              <div className="mt-1 p-1 bg-blue-50 dark:bg-blue-900/20 rounded text-xs">
-                <div className="font-medium">SLOAD Operation:</div>
-                <div>Reading from Storage Slot: {step.stack[step.stack.length - 1]}</div>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Show raw step data for debugging */}
-        <div className="col-span-2 mt-2">
-          <details className="text-xs">
-            <summary className="cursor-pointer text-blue-600 dark:text-blue-400">Show Raw Step Data</summary>
-            <pre className="mt-1 p-1 bg-gray-100 dark:bg-gray-800 overflow-auto max-h-40 text-xs">
-              {JSON.stringify(step, null, 2)}
-            </pre>
-          </details>
+      {/* Only show storage changes if available */}
+      {step.storage_change && Object.keys(step.storage_change).length > 0 && (
+        <div className="mt-1 py-0.5 px-1 bg-purple-50 dark:bg-purple-900/20 rounded text-[10px]">
+          {Object.entries(step.storage_change).map(([slot, value]: [string, any], i) => (
+            <div key={i} className="font-mono flex items-center gap-1 overflow-hidden">
+              <span className="opacity-60">Slot:</span> 
+              <span className="text-purple-700 dark:text-purple-300">{slot.substring(0, 10)}...</span>
+              <span className="opacity-60">→</span> 
+              <span className="text-purple-800 dark:text-purple-200">
+                {typeof value === 'string' ? 
+                  (value.length > 10 ? value.substring(0, 10) + '...' : value) : 
+                  JSON.stringify(value)}
+              </span>
+            </div>
+          ))}
         </div>
-      </div>
+      )}
+      
+      {/* Stack section with expand/collapse functionality */}
+      {step.stack && step.stack.length > 0 && (
+        <div className="mt-1">
+          <div 
+            className="flex items-center gap-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded px-1 py-0.5"
+            onClick={() => setShowStack(!showStack)}
+          >
+            <span className="text-[10px] text-blue-600 dark:text-blue-400">
+              {showStack ? "▼" : "▶"}
+            </span>
+            <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">
+              Stack ({step.stack.length})
+            </span>
+          </div>
+          
+          {/* Show full stack only when expanded */}
+          {showStack && (
+            <div className="ml-4 mt-1 flex flex-col gap-0.5 border-l border-gray-200 dark:border-gray-700 pl-2">
+              {/* Map through stack in normal order (0 at top) */}
+              {step.stack.map((item: string, i: number) => (
+                <div key={i} className="flex items-center">
+                  <span className="text-[9px] text-gray-500 dark:text-gray-400 w-6 text-right mr-1">
+                    {i}:
+                  </span>
+                  <span className="text-[10px] font-mono bg-gray-50 dark:bg-gray-800/60 px-1 rounded overflow-x-auto">
+                    {item}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -298,13 +250,19 @@ const SolidityEditor: React.FC = () => {
     lineExecutionCounts,
     lineOpcodeCategories,
     highlightedLine,
-    setHighlightedLine
+    setHighlightedLine,
+    currentFunction,
+    setCurrentFunction,
+    showOnlyCurrentFunction,
+    setShowOnlyCurrentFunction,
+    showGasHeatmap,
+    setShowGasHeatmap
   } = useTracing();
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
   const [copied, setCopied] = useState(false);
   const [decorations, setDecorations] = useState<string[]>([]);
-  const [showDetailedPanel, setShowDetailedPanel] = useState(false);
+  const [showDetailedPanel, setShowDetailedPanel] = useState(true);
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [hoveredStepIndex, setHoveredStepIndex] = useState<number | null>(null);
 
@@ -716,7 +674,6 @@ const SolidityEditor: React.FC = () => {
             color: bgColor,
             position: monaco.editor.MinimapPosition.Inline
           },
-          glyphMarginClassName: getGlyphMarginClassForCategories(categories),
           stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
           // Add hover tooltip with execution details
           hoverMessage: [
@@ -780,6 +737,83 @@ const SolidityEditor: React.FC = () => {
       }
     }
 
+    // Add gas heatmap decorations based on execution data
+    if (lineToSteps[currentFile.name] && showGasHeatmap) {
+      // Calculate total gas usage per line 
+      const lineGasUsage: Record<number, number> = {};
+      let maxGasUsageLine = 0;
+      
+      Object.entries(lineToSteps[currentFile.name]).forEach(([lineStr, steps]) => {
+        const lineNum = parseInt(lineStr);
+        // Filter if function context is active
+        const relevantSteps = showOnlyCurrentFunction && currentFunction
+          ? steps.filter(step => {
+              if (step.sourceInfo && 'functionName' in step.sourceInfo) {
+                return step.sourceInfo.functionName === currentFunction;
+              }
+              return false;
+            })
+          : steps;
+          
+        // Sum the gas costs for this line
+        const totalGasForLine = relevantSteps.reduce((sum, step) => {
+          const gasCost = step.gas_cost || 0;
+          return sum + gasCost;
+        }, 0);
+        
+        // Only record lines with actual gas usage above a certain threshold
+        if (totalGasForLine > 0) {
+          lineGasUsage[lineNum] = totalGasForLine;
+          
+          // Track the highest gas usage
+          if (totalGasForLine > maxGasUsageLine) {
+            maxGasUsageLine = totalGasForLine;
+          }
+        }
+      });
+      
+      // Make sure we have a reasonable threshold for min gas display
+      // Only show lines that use at least 1% of the max gas line
+      const minGasThreshold = maxGasUsageLine * 0.01;
+      
+      // Apply heatmap based on relative gas usage
+      Object.entries(lineGasUsage).forEach(([lineStr, gasUsage]) => {
+        const lineNum = parseInt(lineStr);
+        
+        // Skip lines with minimal gas usage
+        if (gasUsage <= minGasThreshold) return;
+        
+        // Normalize against max gas and create buckets
+        const gasRatio = gasUsage / maxGasUsageLine;
+        let heatmapClass = '';
+        
+        if (gasRatio < 0.1) {
+          heatmapClass = 'gas-heatmap-very-low';
+        } else if (gasRatio < 0.25) {
+          heatmapClass = 'gas-heatmap-low';
+        } else if (gasRatio < 0.5) {
+          heatmapClass = 'gas-heatmap-medium';
+        } else if (gasRatio < 0.75) {
+          heatmapClass = 'gas-heatmap-high';
+        } else {
+          heatmapClass = 'gas-heatmap-very-high';
+        }
+        
+        // Create gas heatmap decoration
+        newDecorations.push({
+          range: new monaco.Range(
+            lineNum + 1, 1, 
+            lineNum + 1, 1
+          ),
+          options: {
+            isWholeLine: true,
+            className: heatmapClass,
+            hoverMessage: { value: `Gas Usage: ${gasUsage} (${Math.round(gasRatio * 100)}% of max)` }
+          }
+        });
+      });
+    }
+
     // Apply decorations
     setDecorations(model.deltaDecorations(oldDecorations, newDecorations));
 
@@ -797,7 +831,10 @@ const SolidityEditor: React.FC = () => {
     lineExecutionCounts,
     lineOpcodeCategories,
     highlightedLine,
-    currentFile
+    currentFile,
+    showGasHeatmap,
+    showOnlyCurrentFunction,
+    currentFunction
   ]);
 
   // Add a handler to track editor selections and update the selected line
@@ -835,50 +872,35 @@ const SolidityEditor: React.FC = () => {
       return [];
     }
     
-    const steps = lineToSteps[currentFile.name][selectedLine];
+    const allSteps = lineToSteps[currentFile.name][selectedLine];
+    
+    // Filter steps by current function if the filter is active
+    let filteredSteps = allSteps;
+    if (showOnlyCurrentFunction && currentFunction) {
+      filteredSteps = allSteps.filter(step => {
+        // Use a type guard to check if sourceInfo has functionName
+        if (step.sourceInfo && 'functionName' in step.sourceInfo) {
+          return step.sourceInfo.functionName === currentFunction;
+        }
+        return false;
+      });
+      
+      console.log(`Filtered steps for function ${currentFunction}: ${filteredSteps.length} of ${allSteps.length}`);
+    }
     
     // Debug: Log detailed step information to see if SSTORE operations exist
-    console.log(`Debug - All steps for line ${selectedLine + 1}:`, steps);
+    console.log(`Debug - All steps for line ${selectedLine + 1}:`, filteredSteps);
     
     // Look specifically for SSTORE operations
-    const sstoreSteps = steps.filter(step => step.opName === 'SSTORE');
+    const sstoreSteps = filteredSteps.filter(step => step.opName === 'SSTORE');
     if (sstoreSteps.length > 0) {
       console.log('Found SSTORE operations:', sstoreSteps);
     } else {
       console.log('No SSTORE operations found in these steps');
     }
     
-    // Check if there are any steps after this line in the execution sequence
-    if (activeTraceResult.sourceMapping) {
-      const allSteps = Object.values(activeTraceResult.sourceMapping.sourceContext.functionToSteps)
-        .flat() as any[];
-      
-      const currentLineStepPCs = new Set(steps.map(step => step.pc));
-      
-      // Get the minimum and maximum PC from current line steps
-      const minPC = Math.min(...steps.map(step => step.pc));
-      const maxPC = Math.max(...steps.map(step => step.pc));
-      
-      // Find steps that come immediately after this line's steps
-      const nextSteps = allSteps.filter(step => 
-        step.pc > maxPC && 
-        step.pc < maxPC + 20 && // Look at the next 20 PCs to find operations
-        !currentLineStepPCs.has(step.pc)
-      );
-      
-      if (nextSteps.length > 0) {
-        console.log('Next steps in execution after this line:', nextSteps);
-        
-        // Check for SSTORE in the next steps
-        const nearbySSRORE = nextSteps.filter(step => step.opName === 'SSTORE');
-        if (nearbySSRORE.length > 0) {
-          console.log('Found SSTORE operations nearby:', nearbySSRORE);
-        }
-      }
-    }
-    
-    return steps;
-  }, [activeTraceResult, selectedLine, currentFile]);
+    return filteredSteps;
+  }, [activeTraceResult, currentFile, selectedLine, currentFunction, showOnlyCurrentFunction]);
 
   const handleEditorChange = (value: string | undefined) => {
     if (!currentFile) return;
@@ -892,28 +914,6 @@ const SolidityEditor: React.FC = () => {
   const handleCopy = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-  
-  // Helper function to determine the glyph margin class based on opcodes categories
-  const getGlyphMarginClassForCategories = (categories: Set<string>): string => {
-    const categoriesArray = Array.from(categories);
-    
-    if (categoriesArray.includes('STORAGE')) {
-      return 'glyph-margin-storage';
-    }
-    if (categoriesArray.includes('CALL')) {
-      return 'glyph-margin-call';
-    }
-    if (categoriesArray.includes('JUMP')) {
-      return 'glyph-margin-jump';
-    }
-    if (categoriesArray.includes('MEMORY')) {
-      return 'glyph-margin-memory';
-    }
-    if (categoriesArray.includes('FLOW')) {
-      return 'glyph-margin-flow';
-    }
-    return 'glyph-margin-default';
   };
   
   // Use the additional trace event handlers
@@ -981,63 +981,97 @@ const SolidityEditor: React.FC = () => {
       <EditorStyles />
       <div className="flex-grow bg-editor shadow-md overflow-hidden border border-color-editor">
         {currentFile?.address && (
-          <div className="p-2 bg-editor-header flex items-center justify-start">
-            <span className="text-sm font-mono mr-2 text-secondary">
-              Contract Address:
-            </span>
-            <div className="flex items-center bg-editor-address border border-color-editor-address rounded-md overflow-hidden">
-              <span className="text-sm font-mono px-2 py-1 text-primary">
-                {currentFile.address}
+          <div className="p-2 bg-editor-header flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center">
+              <span className="text-sm font-mono mr-2 text-secondary">
+                Contract:
               </span>
-              <CopyToClipboard text={currentFile.address} onCopy={handleCopy}>
-                <button className="px-2 py-1 bg-editor-button hover:bg-editor-button-hover transition-colors text-xs border-l border-color-editor-address focus:outline-none focus:ring-2 focus:ring-accent">
-                  {copied ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 text-success"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 text-secondary"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-                      <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
-                    </svg>
-                  )}
-                </button>
-              </CopyToClipboard>
+              <div className="flex items-center bg-editor-address border border-color-editor-address rounded-md overflow-hidden">
+                <span className="text-sm font-mono px-2 py-1 text-primary">
+                  {currentFile.address}
+                </span>
+                <CopyToClipboard text={currentFile.address} onCopy={handleCopy}>
+                  <button className="px-2 py-1 bg-editor-button hover:bg-editor-button-hover transition-colors text-xs border-l border-color-editor-address focus:outline-none focus:ring-2 focus:ring-accent">
+                    {copied ? (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4 text-blue-500"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4 text-secondary"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                        <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                      </svg>
+                    )}
+                  </button>
+                </CopyToClipboard>
+              </div>
             </div>
             
             {updatedActiveTraceResult && updatedIsTraceDebuggerOpen && (
-              <div className="ml-auto flex items-center">
-                <span className="text-xs px-2 py-1 bg-accent text-white rounded">
-                  Execution Trace: {updatedActiveTraceResult.call}
-                </span>
+              <div className="flex items-center space-x-2">
+                {/* Gas control and function filter */}
+                {showGasHeatmap && (
+                  <div className="flex items-center gap-2 px-2 py-0.5 border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800/50">
+                    <div className="flex items-center">
+                      <div className="h-2.5 w-2.5 border-l-2 border-green-400 mr-0.5"></div>
+                      <div className="h-2.5 w-2.5 border-l-2 border-yellow-400 mr-0.5"></div>
+                      <div className="h-2.5 w-2.5 border-l-2 border-red-500 mr-1"></div>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Gas</span>
+                    </div>
+                  </div>
+                )}
                 <button
                   onClick={() => setShowDetailedPanel(!showDetailedPanel)}
-                  className={`ml-2 text-xs px-2 py-1 rounded ${
-                    showDetailedPanel ? 'bg-success text-white' : 'bg-accent text-white'
-                  }`}
+                  className="text-xs px-3 py-1.5 flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded border border-blue-200 dark:border-blue-800 transition-colors"
                 >
-                  {showDetailedPanel ? 'Hide Detailed Steps' : 'Show Detailed Steps'}
+                  <span className="font-medium">{updatedActiveTraceResult.call}</span>
+                  <span className="text-xs opacity-70">
+                    {showDetailedPanel ? '◀ Hide Details' : '▶ Show Details'}
+                  </span>
                 </button>
+                <div className="flex items-center space-x-2">
+                  <label className="flex items-center cursor-pointer text-gray-600 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      className="w-3 h-3 mr-1"
+                      checked={showGasHeatmap}
+                      onChange={() => setShowGasHeatmap(!showGasHeatmap)}
+                    />
+                    <span className="text-xs">Gas</span>
+                  </label>
+                  {currentFunction && (
+                    <label className="flex items-center cursor-pointer text-gray-600 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        className="w-3 h-3 mr-1"
+                        checked={showOnlyCurrentFunction}
+                        onChange={() => setShowOnlyCurrentFunction(!showOnlyCurrentFunction)}
+                      />
+                      <span className="text-xs">Func only</span>
+                    </label>
+                  )}
+                </div>
               </div>
             )}
           </div>
         )}
+
         <div className={`${showDetailedPanel ? 'flex' : ''} h-full`}>
-          <div className={`${showDetailedPanel ? 'w-2/3' : 'w-full'} h-full p-4 pb-0`}>
+          <div className={`${showDetailedPanel ? 'w-3/4' : 'w-full'} h-full`}>
             {currentFile &&
               (currentFile.content ? (
                 <Editor
@@ -1052,7 +1086,7 @@ const SolidityEditor: React.FC = () => {
                     scrollBeyondLastLine: false,
                     fontSize: 14,
                     lineNumbers: "on",
-                    glyphMargin: true,
+                    glyphMargin: false,
                     folding: true,
                     lineNumbersMinChars: 0,
                     overviewRulerBorder: false,
@@ -1076,48 +1110,24 @@ const SolidityEditor: React.FC = () => {
               ))}
           </div>
           
-          {/* Detailed trace steps panel */}
+          {/* Streamlined detail panel */}
           {showDetailedPanel && activeTraceResult && activeTraceResult.sourceMapping && (
-            <div className="w-1/3 h-full overflow-y-auto border-l border-color-editor">
-              <div className="bg-editor-header p-2 sticky top-0 z-10 border-b border-color-editor">
-                <h3 className="text-xs font-bold">
-                  {selectedLine !== null 
-                    ? `Execution Steps for Line ${selectedLine + 1}`
-                    : 'Select a line to see execution steps'}
-                </h3>
-                <div className="text-xs text-secondary mt-1">
-                  {getStepsForSelectedLine.length 
-                    ? `${getStepsForSelectedLine.length} steps found` 
-                    : selectedLine !== null
-                      ? 'No execution steps for this line'
-                      : 'Click on a line to see execution details'}
-                </div>
-                
-                {/* Gas usage summary */}
-                {getStepsForSelectedLine.length > 0 && (
-                  <div className="mt-2 text-xs border-t border-gray-200 dark:border-gray-700 pt-2">
-                    <div className="flex justify-between">
-                      <span className="font-medium text-secondary">Total Gas Usage:</span>
-                      <span className="font-mono">
-                        {getStepsForSelectedLine.reduce((sum, step) => sum + (step.gas_cost || 0), 0).toLocaleString()} gas
+            <div className="w-1/4 h-full overflow-y-auto border-l border-gray-200 dark:border-gray-700">
+              <div className="bg-gray-100 dark:bg-gray-800 p-2 sticky top-0 z-20 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <div className="flex items-center">
+                    <span>{currentFunction ? currentFunction : 'Execution Steps'}</span>
+                    {selectedLine !== null && (
+                      <span className="ml-1.5 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200 px-1.5 py-0.5 rounded-sm">
+                        Line {selectedLine + 1}
                       </span>
-                    </div>
-                    
-                    {/* Show top gas consumers if we have multiple steps */}
-                    {getStepsForSelectedLine.length > 1 && (
-                      <div className="mt-1">
-                        <div className="font-medium text-xs text-secondary">Top Gas Consumers:</div>
-                        {[...getStepsForSelectedLine]
-                          .sort((a, b) => (b.gas_cost || 0) - (a.gas_cost || 0))
-                          .slice(0, 3)
-                          .map((step, i) => (
-                            <div key={i} className="flex justify-between text-xs">
-                              <span>{step.opName || 'UNKNOWN'} (PC: {step.pc})</span>
-                              <span className="font-mono">{(step.gas_cost || 0).toLocaleString()} gas</span>
-                            </div>
-                          ))}
-                      </div>
                     )}
+                  </div>
+                </h3>
+                
+                {selectedLine === null && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    Click a highlighted line to view execution details
                   </div>
                 )}
               </div>
@@ -1125,126 +1135,37 @@ const SolidityEditor: React.FC = () => {
               <div>
                 {selectedLine !== null && getStepsForSelectedLine.length > 0 && (
                   <>
-                    {/* Group steps by type to make it easier to understand */}
-                    <div className="my-2">
-                      <div className="bg-gray-50 dark:bg-gray-800 p-2 sticky top-[45px] z-10 border-b border-gray-200 dark:border-gray-700">
-                        <div className="text-xs font-medium">Steps by Operation Type</div>
-                        <div className="flex flex-wrap mt-1 gap-1">
-                          {(() => {
-                            // Count steps by category
-                            const categories = getStepsForSelectedLine.reduce((acc, step) => {
-                              const opName = step.opName || 'UNKNOWN';
-                              let category = 'Other';
-                              
-                              if (['SSTORE', 'SLOAD'].includes(opName)) category = 'Storage';
-                              else if (['CALL', 'STATICCALL', 'DELEGATECALL'].includes(opName)) category = 'Calls';
-                              else if (['CREATE', 'CREATE2'].includes(opName)) category = 'Creation';
-                              else if (['JUMP', 'JUMPI', 'JUMPDEST'].includes(opName)) category = 'Control Flow';
-                              else if (['MLOAD', 'MSTORE', 'MSTORE8'].includes(opName)) category = 'Memory';
-                              else if (opName.startsWith('DUP') || opName.startsWith('SWAP') || opName === 'POP' || opName.startsWith('PUSH')) category = 'Stack';
-                              
-                              if (!acc[category]) acc[category] = 0;
-                              acc[category]++;
-                              return acc;
-                            }, {} as Record<string, number>);
-                            
-                            return Object.entries(categories).map(([category, count]) => (
-                              <span 
-                                key={category}
-                                className={`text-xs px-2 py-1 rounded ${
-                                  category === 'Storage' ? 'bg-purple-100 text-purple-800 dark:bg-purple-800/30 dark:text-purple-100' :
-                                  category === 'Calls' ? 'bg-amber-100 text-amber-800 dark:bg-amber-800/30 dark:text-amber-100' :
-                                  category === 'Creation' ? 'bg-blue-100 text-blue-800 dark:bg-blue-800/30 dark:text-blue-100' :
-                                  category === 'Control Flow' ? 'bg-pink-100 text-pink-800 dark:bg-pink-800/30 dark:text-pink-100' :
-                                  category === 'Memory' ? 'bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-100' :
-                                  category === 'Stack' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700/70 dark:text-gray-100' :
-                                  'bg-gray-100 text-gray-700 dark:bg-gray-700/50 dark:text-gray-300'
-                                }`}
-                              >
-                                {category}: {count}
-                              </span>
-                            ));
-                          })()}
-                        </div>
+                    {/* Compact gas usage summary */}
+                    <div className="flex items-center justify-between p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-700 dark:text-gray-300">Gas:</span>
+                        <span className="font-mono bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded text-blue-700 dark:text-blue-300">
+                          {getStepsForSelectedLine.reduce((sum, step) => sum + (step.gas_cost || 0), 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="text-gray-500 dark:text-gray-400">
+                        {getStepsForSelectedLine.length} step{getStepsForSelectedLine.length !== 1 ? 's' : ''}
                       </div>
                     </div>
 
-                    {/* Show all steps in chronological order */}
-                    <div className="mt-2">
-                      <details open>
-                        <summary className="bg-gray-50 dark:bg-gray-800 p-2 cursor-pointer">
-                          <span className="text-xs font-medium">All Steps (Chronological Order)</span>
-                        </summary>
-                        {getStepsForSelectedLine.map((step, index) => (
-                          <DetailedTraceStep 
-                            key={index}
-                            step={step} 
-                            index={index}
-                            isHighlighted={hoveredStepIndex === index}
-                            onMouseEnter={() => setHoveredStepIndex(index)}
-                            onMouseLeave={() => setHoveredStepIndex(null)}
-                          />
-                        ))}
-                      </details>
+                    {/* Execution steps */}
+                    <div className="pb-4">
+                      {getStepsForSelectedLine.map((step, index) => (
+                        <DetailedTraceStep 
+                          key={index}
+                          step={step} 
+                          index={index}
+                          isHighlighted={hoveredStepIndex === index}
+                          onMouseEnter={() => setHoveredStepIndex(index)}
+                          onMouseLeave={() => setHoveredStepIndex(null)}
+                        />
+                      ))}
                     </div>
-                    
-                    {/* Show storage operations if they exist */}
-                    {getStepsForSelectedLine.some(step => ['SSTORE', 'SLOAD'].includes(step.opName || '')) && (
-                      <div className="mt-2">
-                        <details open>
-                          <summary className="bg-purple-50 dark:bg-purple-900/20 p-2 cursor-pointer">
-                            <span className="text-xs font-medium">Storage Operations</span>
-                          </summary>
-                          {getStepsForSelectedLine
-                            .filter(step => ['SSTORE', 'SLOAD'].includes(step.opName || ''))
-                            .map((step, index) => (
-                              <DetailedTraceStep 
-                                key={`storage-${index}`}
-                                step={step} 
-                                index={getStepsForSelectedLine.findIndex(s => s.pc === step.pc)}
-                                isHighlighted={hoveredStepIndex === getStepsForSelectedLine.findIndex(s => s.pc === step.pc)}
-                                onMouseEnter={() => setHoveredStepIndex(getStepsForSelectedLine.findIndex(s => s.pc === step.pc))}
-                                onMouseLeave={() => setHoveredStepIndex(null)}
-                              />
-                          ))}
-                        </details>
-                      </div>
-                    )}
-                    
-                    {/* Show gas-intensive operations */}
-                    {getStepsForSelectedLine.some(step => step.gas_cost && parseInt(String(step.gas_cost)) > 1000) && (
-                      <div className="mt-2">
-                        <details open>
-                          <summary className="bg-red-50 dark:bg-red-900/20 p-2 cursor-pointer">
-                            <span className="text-xs font-medium">High Gas Operations</span>
-                          </summary>
-                          {getStepsForSelectedLine
-                            .filter(step => step.gas_cost && parseInt(String(step.gas_cost)) > 1000)
-                            .map((step, index) => (
-                              <DetailedTraceStep 
-                                key={`gas-${index}`}
-                                step={step} 
-                                index={getStepsForSelectedLine.findIndex(s => s.pc === step.pc)}
-                                isHighlighted={hoveredStepIndex === getStepsForSelectedLine.findIndex(s => s.pc === step.pc)}
-                                onMouseEnter={() => setHoveredStepIndex(getStepsForSelectedLine.findIndex(s => s.pc === step.pc))}
-                                onMouseLeave={() => setHoveredStepIndex(null)}
-                              />
-                          ))}
-                        </details>
-                      </div>
-                    )}
                   </>
                 )}
                 {selectedLine !== null && getStepsForSelectedLine.length === 0 && (
-                  <div className="p-4 text-xs text-secondary">
-                    No execution steps were found for line {selectedLine + 1}.
-                    This line might not be executed or might contain code that doesn't compile to direct opcodes.
-                  </div>
-                )}
-                
-                {selectedLine === null && (
-                  <div className="p-4 text-xs text-secondary">
-                    Click on a highlighted line in the editor to view its execution steps.
+                  <div className="p-3 text-xs text-gray-500 italic">
+                    No execution steps were found for line {selectedLine + 1}. This line may not be executed directly or might be a declaration.
                   </div>
                 )}
               </div>

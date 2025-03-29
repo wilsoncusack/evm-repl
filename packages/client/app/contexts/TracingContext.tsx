@@ -16,6 +16,15 @@ interface TracingContextValue {
   lineExecutionCounts: Record<number, number>;
   // Map from line number to a list of opcode categories that were executed on that line
   lineOpcodeCategories: Record<number, Set<string>>;
+  // Current active function in the trace
+  currentFunction: string | null;
+  setCurrentFunction: (functionName: string | null) => void;
+  // Function context filter state
+  showOnlyCurrentFunction: boolean;
+  setShowOnlyCurrentFunction: (show: boolean) => void;
+  // Gas heatmap visualization
+  showGasHeatmap: boolean;
+  setShowGasHeatmap: (show: boolean) => void;
 }
 
 export const TracingContext = createContext<TracingContextValue>({
@@ -29,6 +38,12 @@ export const TracingContext = createContext<TracingContextValue>({
   setHighlightedStepIndex: () => {},
   lineExecutionCounts: {},
   lineOpcodeCategories: {},
+  currentFunction: null,
+  setCurrentFunction: () => {},
+  showOnlyCurrentFunction: false,
+  setShowOnlyCurrentFunction: () => {},
+  showGasHeatmap: true,
+  setShowGasHeatmap: () => {},
 });
 
 interface TracingProviderProps {
@@ -42,6 +57,9 @@ export const TracingProvider: React.FC<TracingProviderProps> = ({ children }) =>
   const [highlightedStepIndex, setHighlightedStepIndex] = useState<number | null>(null);
   const [lineExecutionCounts, setLineExecutionCounts] = useState<Record<number, number>>({});
   const [lineOpcodeCategories, setLineOpcodeCategories] = useState<Record<number, Set<string>>>({});
+  const [currentFunction, setCurrentFunctionInternal] = useState<string | null>(null);
+  const [showOnlyCurrentFunction, setShowOnlyCurrentFunction] = useState<boolean>(false);
+  const [showGasHeatmap, setShowGasHeatmap] = useState<boolean>(true);
 
   // Update line execution counts when active trace result changes
   useEffect(() => {
@@ -56,24 +74,40 @@ export const TracingProvider: React.FC<TracingProviderProps> = ({ children }) =>
     const categories: Record<number, Set<string>> = {};
 
     // Process all steps to build execution counts and opcode categories by line
+    // Filter by current function if the filter is active
     Object.entries(sourceContext.lineToSteps).forEach(([filePath, lineSteps]) => {
       Object.entries(lineSteps).forEach(([lineStr, steps]) => {
         const lineNum = parseInt(lineStr, 10);
-        counts[lineNum] = steps.length;
         
-        // Collect all categories of opcodes executed on this line
-        categories[lineNum] = new Set<string>();
-        steps.forEach(step => {
-          if (step.category) {
-            categories[lineNum].add(step.category);
-          }
-        });
+        // Filter steps by function if needed
+        let filteredSteps = steps;
+        if (showOnlyCurrentFunction && currentFunction) {
+          filteredSteps = steps.filter(step => {
+            // Use a type guard to check if sourceInfo has functionName
+            if (step.sourceInfo && 'functionName' in step.sourceInfo) {
+              return step.sourceInfo.functionName === currentFunction;
+            }
+            return false;
+          });
+        }
+        
+        if (filteredSteps.length > 0) {
+          counts[lineNum] = filteredSteps.length;
+          
+          // Collect all categories of opcodes executed on this line
+          categories[lineNum] = new Set<string>();
+          filteredSteps.forEach(step => {
+            if (step.category) {
+              categories[lineNum].add(step.category);
+            }
+          });
+        }
       });
     });
 
     setLineExecutionCounts(counts);
     setLineOpcodeCategories(categories);
-  }, [activeTraceResultInternal]);
+  }, [activeTraceResultInternal, currentFunction, showOnlyCurrentFunction]);
 
   // Wrapper function for setting active trace with logging
   const setActiveTraceResult = (result: EnhancedFunctionCallResult | null) => {
@@ -84,6 +118,13 @@ export const TracingProvider: React.FC<TracingProviderProps> = ({ children }) =>
     if (result && !isTraceDebuggerOpenInternal) {
       console.log('TracingContext: Automatically opening trace debugger');
       setIsTraceDebuggerOpenInternal(true);
+      
+      // Try to extract and set the function name from the trace
+      if (result.call) {
+        const functionName = result.call.split('(')[0];
+        console.log('TracingContext: Automatically setting current function to:', functionName);
+        setCurrentFunctionInternal(functionName);
+      }
     }
   };
 
@@ -96,7 +137,14 @@ export const TracingProvider: React.FC<TracingProviderProps> = ({ children }) =>
     if (!isOpen && activeTraceResultInternal) {
       console.log('TracingContext: Automatically clearing active trace on debugger close');
       setActiveTraceResultInternal(null);
+      setCurrentFunctionInternal(null);
     }
+  };
+  
+  // Wrapper for setting current function with logging
+  const setCurrentFunction = (functionName: string | null) => {
+    console.log('TracingContext: Setting current function:', functionName);
+    setCurrentFunctionInternal(functionName);
   };
 
   // Provide the context value
@@ -111,6 +159,12 @@ export const TracingProvider: React.FC<TracingProviderProps> = ({ children }) =>
     setHighlightedStepIndex,
     lineExecutionCounts,
     lineOpcodeCategories,
+    currentFunction,
+    setCurrentFunction,
+    showOnlyCurrentFunction,
+    setShowOnlyCurrentFunction,
+    showGasHeatmap,
+    setShowGasHeatmap,
   };
 
   return (
