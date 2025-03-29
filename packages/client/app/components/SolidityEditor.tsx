@@ -262,7 +262,7 @@ const SolidityEditor: React.FC = () => {
   const monacoRef = useRef<any>(null);
   const [copied, setCopied] = useState(false);
   const [decorations, setDecorations] = useState<string[]>([]);
-  const [showDetailedPanel, setShowDetailedPanel] = useState(true);
+  const [showDetailedPanel, setShowDetailedPanel] = useState(false);
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [hoveredStepIndex, setHoveredStepIndex] = useState<number | null>(null);
 
@@ -1070,8 +1070,8 @@ const SolidityEditor: React.FC = () => {
           </div>
         )}
 
-        <div className={`${showDetailedPanel ? 'flex' : ''} h-full`}>
-          <div className={`${showDetailedPanel ? 'w-3/4' : 'w-full'} h-full`}>
+        <div className={`${showDetailedPanel && isTraceDebuggerOpen ? 'flex' : ''} h-full`}>
+          <div className={`${showDetailedPanel && isTraceDebuggerOpen ? 'w-3/4' : 'w-full'} h-full`}>
             {currentFile &&
               (currentFile.content ? (
                 <Editor
@@ -1110,8 +1110,8 @@ const SolidityEditor: React.FC = () => {
               ))}
           </div>
           
-          {/* Streamlined detail panel */}
-          {showDetailedPanel && activeTraceResult && activeTraceResult.sourceMapping && (
+          {/* Streamlined detail panel - only show when both conditions are true */}
+          {showDetailedPanel && isTraceDebuggerOpen && activeTraceResult && activeTraceResult.sourceMapping && (
             <div className="w-1/4 h-full overflow-y-auto border-l border-gray-200 dark:border-gray-700">
               <div className="bg-gray-100 dark:bg-gray-800 p-2 sticky top-0 z-20 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200">

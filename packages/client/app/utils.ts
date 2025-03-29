@@ -15,7 +15,7 @@ export function getRandomAddress(): `0x${string}` {
 
 export async function fetchBytecodeFromChain(
   chain: Chain,
-  address: Address,
+  address: Address,f
 ): Promise<Hex | undefined> {
   const client = createPublicClient({
     chain,
