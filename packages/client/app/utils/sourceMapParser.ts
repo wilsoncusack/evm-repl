@@ -8,12 +8,7 @@ import { Instruction, parseEVMBytecode, dumpInstructions } from "./bytecodeParse
  * @returns Array of parsed source map entries
  */
 export function parseSourceMaps(sourceMapData: any): SourceMapEntry[] {
-  console.log('Parsing source maps');
-  console.log('Source map data type:', typeof sourceMapData);
-  console.log('Source map data keys:', Object.keys(sourceMapData));
-  
   if (!sourceMapData) {
-    console.warn('No source maps provided');
     return [];
   }
   
@@ -25,39 +20,28 @@ export function parseSourceMaps(sourceMapData: any): SourceMapEntry[] {
       key.includes(':deployed:') || key.includes('deployedSourceMap')
     );
     
-    console.log('Deployed source map keys found:', deployedKeys);
-    
     if (deployedKeys.length === 0) {
-      console.warn('No deployed source maps found in compiler output');
       return [];
     }
     
     // Prioritize deployed source maps
     for (const key of deployedKeys) {
-      console.log(`Processing source map key: ${key}`);
       const sourceMap = sourceMapData[key];
       
       if (!sourceMap) {
-        console.warn(`No source map found for key: ${key}`);
         continue;
       }
       
-      console.log(`Source map type for ${key}:`, typeof sourceMap);
-      
       // Extract source file path from the key
       const filePath = key.split(':deployed:')[0];
-      console.log('Extracted file path:', filePath);
       
       // Process the source map based on its type
       if (typeof sourceMap === 'string') {
-        console.log(`Processing string source map for ${key}`);
-        
         try {
           // Check if it's a JSON string
           if (sourceMap.trim().startsWith('[')) {
             // Try to parse JSON
             const parsedMap = JSON.parse(sourceMap);
-            console.log(`Parsed JSON source map with ${parsedMap.length} entries`);
             
             // Add each entry to the result
             for (const entry of parsedMap) {
@@ -74,7 +58,6 @@ export function parseSourceMaps(sourceMapData: any): SourceMapEntry[] {
           } else {
             // Standard semicolon-separated format
             const entries = sourceMap.split(';');
-            console.log(`Found ${entries.length} semicolon-separated entries`);
             
             // Create a single entry to hold the mappings
             result.push({
@@ -89,7 +72,6 @@ export function parseSourceMaps(sourceMapData: any): SourceMapEntry[] {
             });
           }
         } catch (error) {
-          console.error('Error parsing source map JSON:', error);
           // Fallback: treat as a simple string
           result.push({
             offset: 0,
@@ -103,8 +85,6 @@ export function parseSourceMaps(sourceMapData: any): SourceMapEntry[] {
           });
         }
       } else if (typeof sourceMap === 'object') {
-        console.log(`Processing object source map with keys:`, Object.keys(sourceMap));
-        
         // Object-based source map - add directly
         result.push({
           offset: 0,
@@ -118,21 +98,8 @@ export function parseSourceMaps(sourceMapData: any): SourceMapEntry[] {
         });
       }
     }
-    
-    console.log(`Parsed ${result.length} source map entries`);
-    
-    // Log some sample entries
-    if (result.length > 0) {
-      console.log('First source map entry:', {
-        offset: result[0].offset,
-        length: result[0].length,
-        index: result[0].index,
-        jumpType: result[0].jumpType,
-        sourceList: result[0].sourceList
-      });
-    }
   } catch (error) {
-    console.error('Error parsing source maps:', error);
+    // Handle error silently
   }
   
   return result;
@@ -148,15 +115,12 @@ export function parseSourceMaps(sourceMapData: any): SourceMapEntry[] {
 export function calculateLineAndColumn(source: string, offset: number): { line: number; column: number } {
   // Handle invalid offsets
   if (offset < 0 || offset > source.length) {
-    console.warn(`Offset ${offset} is out of bounds for source of length ${source.length}`);
-    
     // For out-of-bounds offsets, clamp to valid range
     // Note: offsets may be referring to intermediate Yul IR, not the Solidity source directly
     const clampedOffset = Math.min(Math.max(0, offset), source.length);
     
-    // Log that we're clamping and returning a best guess
+    // Use the clamped offset
     if (offset !== clampedOffset) {
-      console.warn(`Clamping out-of-bounds offset ${offset} to ${clampedOffset} (likely referencing Yul IR position)`);
       offset = clampedOffset;
     }
   }
@@ -183,26 +147,13 @@ export function createPCToSourceMap(
   bytecode: string,
   sourceFiles: Record<string, string>
 ): Map<number, SourceLocation> {
-  console.log('Creating PC to source map');
-  console.log('Source maps length:', sourceMaps.length);
-  console.log('Bytecode length:', bytecode?.length || 'undefined');
-  console.log('Source files available:', Object.keys(sourceFiles).join(', '));
-  
-  // Debug: log the first few lines of each source file to verify content
-  for (const [path, content] of Object.entries(sourceFiles)) {
-    const firstLines = content.split('\n').slice(0, 3).join('\n');
-    console.log(`First few lines of ${path}:\n${firstLines}...\n(total ${content.length} chars)`);
-  }
-  
   const pcToSource = new Map<number, SourceLocation>();
   
   if (!bytecode || bytecode.length === 0) {
-    console.warn('No bytecode provided, returning empty map');
     return pcToSource;
   }
   
   if (sourceMaps.length === 0) {
-    console.warn('No source maps provided, returning empty map');
     return pcToSource;
   }
   
@@ -220,12 +171,6 @@ export function createPCToSourceMap(
       normalizedFilePathsMap.set(nameWithoutExt, filePath);
     }
   }
-  
-  // Debug: log the normalization map
-  console.log('File path normalization map:');
-  Array.from(normalizedFilePathsMap.entries()).forEach(([key, value]) => {
-    console.log(`  "${key}" -> "${value}"`);
-  });
   
   // Helper function to get file content by normalized path
   const getFileContentByPath = (path: string): string | undefined => {
@@ -261,15 +206,12 @@ export function createPCToSourceMap(
       }
     }
     
-    // Log the failed lookup
-    console.warn(`Source file not found: "${path}"`);
     return undefined;
   };
   
   try {
     // Parse bytecode to get accurate PC values
     const instructions = parseEVMBytecode('0x' + bytecode.replace(/^0x/, ''));
-    console.log(`Parsed ${instructions.length} instructions from bytecode`);
     
     // Create a mapping from index to instruction
     const indexToInstruction = new Map<number, Instruction>();
@@ -284,8 +226,6 @@ export function createPCToSourceMap(
     
     // Check if the sourceMaps format is the newer JSON format with direct entries
     if (sourceMaps.length > 0 && sourceMaps[0].offset > 0) {
-      console.log('Using direct source map entries (JSON format)');
-      
       // For each entry in the source map...
       for (let i = 0; i < sourceMaps.length; i++) {
         const entry = sourceMaps[i];
@@ -350,11 +290,8 @@ export function createPCToSourceMap(
     } 
     // Handle traditional semicolon-separated format
     else if (sourceMaps.length > 0 && sourceMaps[0].mappings) {
-      console.log('Using semicolon-separated source maps');
-      
       const sourceMap = sourceMaps[0];
       const mappings = sourceMap.mappings ? sourceMap.mappings.split(';') : [];
-      console.log(`Mapping entries: ${mappings.length}`);
       
       // Get source file
       let sourceFilePath: string | undefined;
@@ -363,13 +300,11 @@ export function createPCToSourceMap(
       }
       
       if (!sourceFilePath) {
-        console.warn('No source file path found in source map');
         return pcToSource;
       }
       
       const fileContent = getFileContentByPath(sourceFilePath);
       if (!fileContent) {
-        console.error(`Source file '${sourceFilePath}' not found for main mapping`);
         return pcToSource;
       }
       
@@ -482,23 +417,9 @@ export function createPCToSourceMap(
         lastJumpType = jumpType;
         lastModifierDepth = modifierDepth;
       }
-    } else {
-      console.warn('Source maps are in an unrecognized format');
-    }
-    
-    console.log(`Created PC to source map with ${pcToSource.size} entries (${validMappings} valid, ${invalidOffsets} invalid offsets, ${missingFiles} missing files)`);
-    console.log('Note: Invalid offsets likely refer to Yul IR positions rather than direct Solidity source positions');
-    
-    // Log some sample entries
-    const entries = Array.from(pcToSource.entries());
-    if (entries.length > 0) {
-      console.log('Sample PC to source mappings:');
-      entries.slice(0, 5).forEach(([pc, loc]) => {
-        console.log(`PC ${pc} -> ${loc.filePath}:${loc.line}:${loc.column} (offset: ${loc.offset}, length: ${loc.length})`);
-      });
     }
   } catch (error) {
-    console.error('Error creating PC to source map:', error);
+    // Handle error silently
   }
   
   return pcToSource;
@@ -583,14 +504,9 @@ export function extractFunctionRanges(source: string): { name: string; start: nu
         line: startLine,
         endLine: endLine
       });
-      
-      console.log(`Detected function: ${functionName} at lines ${startLine+1}-${endLine+1}, offsets ${startOffset}-${endOffset}`);
-      console.log(`Function code: "${source.substring(startOffset, Math.min(startOffset + 40, endOffset))}..."`);
     }
-    
-    console.log(`Total functions detected: ${functionRanges.length}`);
   } catch (error) {
-    console.error('Error extracting function ranges:', error);
+    // Handle error silently
   }
   
   return functionRanges;

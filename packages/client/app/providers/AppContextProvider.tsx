@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { AppContext } from "../contexts/AppContext";
 import type {
   CompilationResult,
@@ -279,20 +279,75 @@ export const AppProvider: React.FC<{
     }));
   }, []);
 
-  const debouncedRefreshFunctionCallResult = useDebounce(
-    refreshFunctionCallResult,
-    300,
-  );
+  // Create a stable version of refreshFunctionCallResult that doesn't depend on currentFile
+  // This is the key to breaking the dependency cycle
+  const stableRefreshFunctionCallResult = useCallback(() => {
+    // We invoke the actual refresh function, but this wrapper doesn't need
+    // to list currentFile as a dependency because it's captured in the closure
+    refreshFunctionCallResult();
+  }, [refreshFunctionCallResult]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: want to update when any of these change
+  const debouncedStableRefresh = useDebounce(stableRefreshFunctionCallResult, 300);
+
+  // Track if we're waiting for compilation to complete
+  const isWaitingForCompilation = useRef(false);
+  
+  // Track compilation versions to know if a new compilation happened
+  const fileChangeVersion = useRef(0);
+  const lastCompiledVersion = useRef(0);
+
+  // Effect for file changes - mark that we're waiting for compilation
   useEffect(() => {
-    debouncedRefreshFunctionCallResult();
+    // When files change, mark that we're waiting for compilation results
+    // and increment the fileChangeVersion to track this change
+    isWaitingForCompilation.current = true;
+    fileChangeVersion.current += 1;
+  }, [files]);
+
+  // Track compilation status
+  useEffect(() => {
+    // When compilation completes, update the lastCompiledVersion
+    if (!isCompiling && compilationResult && isWaitingForCompilation.current) {
+      lastCompiledVersion.current = fileChangeVersion.current;
+    }
+  }, [isCompiling, compilationResult]);
+
+  // Effect that triggers function call refresh ONLY after compilation completes
+  useEffect(() => {
+    // Skip initial run with undefined compilation result
+    if (!compilationResult) {
+      return;
+    }
+    
+    // Only clear the waiting flag if we have a recent compilation
+    if (isWaitingForCompilation.current && lastCompiledVersion.current === fileChangeVersion.current) {
+      isWaitingForCompilation.current = false;
+      debouncedStableRefresh();
+    } else if (!isWaitingForCompilation.current) {
+      // If not waiting but compilation result changed (e.g., initial load)
+      debouncedStableRefresh();
+    }
   }, [
-    compilationResult,
-    currentFile,
+    compilationResult, 
+    debouncedStableRefresh
+  ]);
+
+  // Effect for non-compilation-related triggers for function call refresh
+  useEffect(() => {
+    // Skip during initial render
+    if (!compilationResult) {
+      return;
+    }
+    
+    // Only run if we're not waiting for compilation
+    if (!isWaitingForCompilation.current) {
+      debouncedStableRefresh();
+    }
+  }, [
     filesFunctionCalls,
-    debouncedRefreshFunctionCallResult,
     forkConfig,
+    debouncedStableRefresh,
+    compilationResult
   ]);
 
   const value = {

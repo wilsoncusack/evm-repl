@@ -20,7 +20,6 @@ interface SourceContext {
  */
 export function enhanceTracesWithOpcodes(traces: FunctionCallResult["traces"]): FunctionCallResult["traces"] {
   if (!traces || !traces.arena) {
-    console.warn('No trace data to enhance');
     return traces;
   }
   
@@ -40,8 +39,6 @@ export function enhanceTracesWithOpcodes(traces: FunctionCallResult["traces"]): 
           step.category = getOpcodeCategory(step.opName);
         }
       }
-    } else {
-      console.warn('No steps found in trace or steps is not an array');
     }
   }
   
@@ -62,7 +59,6 @@ export function enhanceTracesWithSourceInfo(
   sourceFiles: Record<string, string>
 ): FunctionCallResult["traces"] {
   if (!traces || !traces.arena) {
-    console.warn('No trace data to enhance with source info');
     return traces;
   }
   
@@ -74,17 +70,6 @@ export function enhanceTracesWithSourceInfo(
   for (const [path, content] of Object.entries(sourceFiles)) {
     fileLines[path] = content.split('\n');
   }
-  
-  // Debug: Log some PCs from the trace
-  if (enhancedTraces.arena[0]?.trace?.steps?.length > 0) {
-    const sampleSteps = enhancedTraces.arena[0].trace.steps.slice(0, 5);
-    console.log('Sample trace steps PCs:', sampleSteps.map((s: any) => typeof s.pc === 'number' ? s.pc : 'undefined'));
-  }
-  
-  // Debug: Log some PCs from the source map
-  console.log('PC to source map size:', pcToSource.size);
-  const pcSample = Array.from(pcToSource.keys()).slice(0, 5);
-  console.log('Sample PCs in source map:', pcSample);
   
   let mappedSteps = 0;
   let totalSteps = 0;
@@ -152,9 +137,6 @@ export function enhanceTracesWithSourceInfo(
     }
   }
   
-  console.log(`Source mapping stats: mapped ${mappedSteps} of ${totalSteps} steps (${Math.round(mappedSteps/totalSteps*100)}%)`);
-  console.log(`Duplicate mappings: ${duplicateCount} steps (${Math.round(duplicateCount/totalSteps*100)}% of total)`);
-  
   return enhancedTraces;
 }
 
@@ -173,16 +155,6 @@ function groupStepsByFunction(
   const sourceFiles = Object.keys(sourceContext.sourceFiles);
   const functionRanges = sourceContext.functionRanges;
   
-  // Debug output - log all function ranges first
-  sourceFiles.forEach(file => {
-    if (functionRanges[file]) {
-      console.log(`Functions in ${file}:`);
-      functionRanges[file].forEach(fn => {
-        console.log(`  - ${fn.name}: lines ${fn.line+1}-${fn.endLine+1}, offsets ${fn.start}-${fn.end}`);
-      });
-    }
-  });
-
   // Count steps assigned to each function
   const assignedSteps: Record<string, number> = {};
   let unmappedSteps = 0;
@@ -258,26 +230,18 @@ function groupStepsByFunction(
             
             // Set function name in sourceInfo
             step.sourceInfo.functionName = closestFunction.name;
-            console.log(`Assigned step at line ${stepLine+1} to function ${closestFunction.name} (closest match)`);
             foundFunction = true;
           }
         }
       }
       
       if (!foundFunction) {
-        console.log(`Could not assign step at offset ${offset} (line ${step.sourceInfo.line+1}) to any function in ${filePath}`);
         unmappedSteps++;
       }
     } else {
       unmappedSteps++;
     }
   });
-  
-  // Log function assignment stats
-  Object.entries(assignedSteps).forEach(([funcKey, count]) => {
-    console.log(`Function "${funcKey.split(':').pop()}" has ${count} steps`);
-  });
-  console.log(`Unmapped steps: ${unmappedSteps}`);
   
   return functionToSteps;
 }
@@ -317,13 +281,6 @@ function groupStepsBySourceLine(
     }
   }
   
-  // Log the number of lines with steps per file
-  for (const [file, lines] of Object.entries(result)) {
-    const lineCount = Object.keys(lines).length;
-    const totalSteps = Object.values(lines).reduce((sum, steps) => sum + steps.length, 0);
-    console.log(`File "${file}" has ${totalSteps} steps across ${lineCount} lines`);
-  }
-  
   return result;
 }
 
@@ -342,43 +299,14 @@ export function buildSourceTraceMapping(
   compilationResult: any,
   sourceFiles: Record<string, string>
 ): SourceTraceMapping {
-  console.log('Building source trace mapping');
-  console.log('Trace structure:', traces ? 'available' : 'undefined'); 
-  if (traces && traces.arena) {
-    console.log(`Trace has ${traces.arena.length} arena items`);
-    if (traces.arena.length > 0 && traces.arena[0].trace.steps) {
-      console.log(`First trace has ${traces.arena[0].trace.steps.length} steps`);
-      // Log a few sample PCs
-      const samplePCs = traces.arena[0].trace.steps.slice(0, 5).map(s => s.pc);
-      console.log('Sample PCs from trace:', samplePCs);
-    }
-  }
-  
-  console.log('Compilation result structure:');
-  if (compilationResult) {
-    console.log('- Has errors:', compilationResult.errors ? compilationResult.errors.length : 'none');
-    console.log('- Contract files:', Object.keys(compilationResult.contracts || {}));
-    console.log('- Source maps available:', compilationResult.source_maps ? 'yes' : 'no');
-    if (compilationResult.source_maps) {
-      console.log('- Source map keys:', Object.keys(compilationResult.source_maps));
-    }
-  } else {
-    console.log('Compilation result is undefined');
-  }
-  
   // 1. Parse source maps
   const sourceMaps = parseSourceMaps(compilationResult.source_maps || {});
-  console.log(`Parsed ${sourceMaps.length} source maps`);
   
   // 2. Extract function ranges from source files
   const functionRanges: Record<string, { name: string; start: number; end: number; line: number; endLine: number }[]> = {};
   for (const [path, content] of Object.entries(sourceFiles)) {
     functionRanges[path] = extractFunctionRanges(content);
   }
-  console.log('Extracted function ranges');
-  console.log('Source files:', Object.keys(sourceFiles));
-  console.log('Function ranges by file:', Object.entries(functionRanges).map(([file, ranges]) => 
-    `${file}: ${ranges.length} functions`));
   
   // 3. Create PC to source mapping
   let bytecode = '';
@@ -387,42 +315,21 @@ export function buildSourceTraceMapping(
     const firstContract = Object.keys(compilationResult.contracts)[0];
     if (firstContract && compilationResult.contracts[firstContract][0]) {
       bytecode = compilationResult.contracts[firstContract][0].contract.evm.deployedBytecode.object;
-      console.log('Found bytecode in compilation result, length:', bytecode.length);
     }
-  }
-  
-  if (!bytecode && traces.arena && traces.arena.length > 0) {
-    // Try to get contract address from trace
-    const contractAddress = traces.arena[0].trace.address;
-    console.log('Using contract address from trace:', contractAddress);
-    
-    // In a real implementation, you would get the bytecode for this address
-    // from the blockchain. For now, we'll just log it.
   }
   
   // Fallback to the function call's contract's bytecode if available
   if (!bytecode && 'contractBytecode' in functionCall) {
     bytecode = (functionCall as any).contractBytecode;
-    console.log('Using bytecode from function call, length:', bytecode ? bytecode.length : 0);
-  }
-  
-  // Debug: log first few bytes of bytecode
-  if (bytecode) {
-    console.log('Bytecode sample:', bytecode.substring(0, 50) + '...');
-  } else {
-    console.warn('No bytecode available for source mapping!');
   }
   
   const pcToSource = createPCToSourceMap(sourceMaps, bytecode, sourceFiles);
-  console.log('Created PC to source mapping with', pcToSource.size, 'entries');
   
   // 4. Enhance traces with opcode information
   const tracesWithOpcodes = enhanceTracesWithOpcodes(traces);
-  console.log('Enhanced traces with opcodes');
   
   // 5. Enhance traces with source information
   const enhancedTraces = enhanceTracesWithSourceInfo(tracesWithOpcodes, pcToSource, sourceFiles);
-  console.log('Enhanced traces with source info');
   
   // 6. Group steps by function
   // Extract all steps from all traces
@@ -439,11 +346,9 @@ export function buildSourceTraceMapping(
 
   // Now pass the extracted steps to the groupStepsByFunction function
   const functionToSteps = groupStepsByFunction(allSteps, { sourceFiles, functionRanges, pcToSource });
-  console.log('Grouped steps by function');
   
   // 7. Group steps by source line
   const lineToSteps = groupStepsBySourceLine(allSteps);
-  console.log('Grouped steps by source line');
   
   // Build and return the complete structure
   return {
@@ -498,16 +403,12 @@ export function enhanceTraceWithSourceInfo(
   bytecode: string,
   sourceMaps: any
 ): EnhancedFunctionCallResult {
-  console.log('Enhancing trace with source info');
-  
   if (!result.traces || !result.traces.arena) {
-    console.warn('No traces found to enhance');
     return result as EnhancedFunctionCallResult;
   }
   
   // 1. Parse source maps
   const parsedSourceMaps = parseSourceMaps(sourceMaps);
-  console.log(`Parsed ${parsedSourceMaps.length} source maps`);
   
   // 2. Create a mapping from PC to source location
   const pcToSource = createPCToSourceMap(
@@ -609,9 +510,6 @@ export function enhanceTraceWithSourceInfo(
     }
   }
   
-  console.log(`Source mapping stats: mapped ${mappedSteps} of ${totalSteps} steps (${Math.round(mappedSteps/totalSteps*100)}%)`);
-  console.log(`Duplicate mappings: ${duplicateCount} steps (${Math.round(duplicateCount/totalSteps*100)}% of total)`);
-  
   // 6. Create source context
   const sourceContext: SourceContext = { 
     sourceFiles, 
@@ -621,11 +519,9 @@ export function enhanceTraceWithSourceInfo(
   
   // 7. Group steps by function
   const functionToSteps = groupStepsByFunction(allSteps, sourceContext);
-  console.log('Grouped steps by function');
   
   // 8. Group steps by source line
   const lineToSteps = groupStepsBySourceLine(allSteps);
-  console.log('Grouped steps by source line');
   
   // Create the complete source trace mapping
   const sourceMapping: SourceTraceMapping = {

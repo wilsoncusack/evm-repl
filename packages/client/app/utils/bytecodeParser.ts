@@ -16,8 +16,6 @@ export interface Instruction {
  * @returns Array of parsed instructions with accurate PC values
  */
 export function parseEVMBytecode(bytecode: string): Instruction[] {
-  console.log('Parsing EVM bytecode');
-  console.log('Input bytecode format:', bytecode ? `${bytecode.substring(0, 10)}... (${bytecode.length} chars)` : 'empty');
   
   const instructions: Instruction[] = [];
   
@@ -30,8 +28,7 @@ export function parseEVMBytecode(bytecode: string): Instruction[] {
     console.error(`Invalid bytecode format: ${!cleanedBytecode ? 'empty' : 'odd length'}`);
     return [];
   }
-  
-  console.log(`Parsing bytecode of length: ${cleanedBytecode.length} chars (${cleanedBytecode.length/2} bytes)`);
+
   
   // Check if bytecode is actually hexadecimal
   if (!/^[0-9a-fA-F]+$/.test(cleanedBytecode)) {
@@ -87,9 +84,6 @@ export function parseEVMBytecode(bytecode: string): Instruction[] {
       index++;
     }
     
-    console.log(`Successfully parsed ${instructions.length} instructions`);
-    console.log(`PC range: 0 to ${pc-1}`);
-    
     // Quick check of first few instructions for validation
     dumpInstructions(instructions, 5);
   } catch (error) {
@@ -121,8 +115,6 @@ export function mapInstructionsToSourceMap(
       pcToSourceMap.set(instruction.pc, sourceMapEntry);
     }
   }
-  
-  console.log(`Mapped ${pcToSourceMap.size} instructions to source locations`);
   return pcToSourceMap;
 }
 
@@ -133,16 +125,8 @@ export function mapInstructionsToSourceMap(
  * @param limit Maximum number of instructions to dump
  */
 export function dumpInstructions(instructions: Instruction[], limit: number = 20): void {
-  console.log(`Dumping first ${Math.min(limit, instructions.length)} instructions:`);
   
   for (let i = 0; i < Math.min(limit, instructions.length); i++) {
     const instr = instructions[i];
-    console.log(
-      `PC=${instr.pc.toString().padStart(4, ' ')} ` +
-      `Op=${instr.opcode.toString(16).padStart(2, '0')} ` +
-      `${instr.opcodeName.padEnd(10, ' ')} ` +
-      `Size=${instr.size} ` +
-      (instr.pushData ? `Data=${instr.pushData}` : '')
-    );
   }
 } 
