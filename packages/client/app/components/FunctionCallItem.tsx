@@ -4,14 +4,48 @@
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useAppContext } from "../hooks/useAppContext";
-import ResultDisplay from "./ResultDisplay";
+import { useTracing } from "../hooks/useTracing";
 import type { FunctionCall, FunctionCallResult } from "../types";
 import { Hex, encodeFunctionData, isHex } from "viem";
+import ResultDisplay from "./ResultDisplay";
+import TraceDebugger from "./TraceDebugger";
+import TraceDisplay from "./TraceDispaly";
+import { replacer } from "../utils";
+import {
+  EnhancedFunctionCallResult,
+  SourceTraceMapping,
+} from "../types/sourceMapping";
+
+// Add extended type definition for source mapping that's compatible with both systems
+interface SourceContext {
+  functionRanges: Record<
+    string,
+    Array<{
+      name: string;
+      line: number;
+    }>
+  >;
+}
+
+interface SourceMapping {
+  sourceContext: SourceContext;
+}
+
+// Extend the FunctionCallResult type to include the missing properties
+interface ExtendedFunctionCallResult extends FunctionCallResult {
+  sourceMapping?: SourceMapping;
+  error?: string;
+}
+
+// Unified result type that works with both systems
+type UnifiedFunctionCallResult =
+  | EnhancedFunctionCallResult
+  | (ExtendedFunctionCallResult & { error?: string });
 
 interface FunctionCallItemProps {
-  call: FunctionCall;
+  call: FunctionCall & { id?: string }; // Add explicit id property
   index: number;
-  result?: FunctionCallResult;
+  result?: UnifiedFunctionCallResult;
   isRawCalldata: boolean;
 }
 
@@ -26,13 +60,80 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
     currentFile,
     currentFileCompilationResult,
     clearCurrentFileFunctionCallResults,
+    setIsTraceDebuggerOpen,
+    setActiveTraceId,
+    activeTraceId,
   } = useAppContext();
+
+  const { setActiveTraceResult, activeTraceResult } = useTracing();
+
   const [error, setError] = useState<string | undefined>(undefined);
+  const [isHovered, setIsHovered] = useState(false);
+  const [showSimpleTrace, setShowSimpleTrace] = useState(false);
+  const [showEventDetails, setShowEventDetails] = useState(true);
+
+  // Check if this call is the active trace
+  const isActive =
+    activeTraceResult &&
+    result &&
+    "id" in call &&
+    call.id &&
+    activeTraceId === call.id;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: only want this to run when compilation changes
   useEffect(() => {
     handleFunctionCallsChange(call.rawInput, index);
   }, [currentFileCompilationResult]);
+
+  // Add a unique ID to each function call
+  useEffect(() => {
+    // Generate a unique ID for this call if it doesn't have one
+    if (!("id" in call) && currentFile) {
+      setFilesFunctionCalls((prev) => {
+        const newCalls = [...(prev[currentFile.id] || [])];
+        const newId = `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // Create a new object with the correct shape
+        const updatedCall = {
+          ...newCalls[index],
+          rawInput: newCalls[index].rawInput,
+          id: newId,
+        };
+
+        newCalls[index] = updatedCall;
+        return { ...prev, [currentFile.id]: newCalls };
+      });
+    }
+  }, [call, currentFile, index, setFilesFunctionCalls]);
+
+  // Show debugger trace when hovering
+  useEffect(() => {
+    if (isHovered && result) {
+      // Convert or cast the result to EnhancedFunctionCallResult as needed
+      const traceResult = result as EnhancedFunctionCallResult;
+
+      // Set the active trace result in the TracingContext
+      setActiveTraceResult(traceResult);
+
+      // Set the trace debugger open state in AppContext
+      setIsTraceDebuggerOpen(true);
+
+      // Set the active trace ID if we have one
+      if ("id" in call && call.id) {
+        setActiveTraceId(call.id);
+      }
+
+      // Scroll to the function in the editor
+      scrollToFunction(result);
+    }
+  }, [
+    isHovered,
+    result,
+    call,
+    setActiveTraceResult,
+    setIsTraceDebuggerOpen,
+    setActiveTraceId,
+  ]);
 
   const handleFunctionCallsChange = useCallback(
     (newCall: string, index: number) => {
@@ -63,6 +164,7 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
             ...newCalls[index],
             rawInput: newCall,
             encodedCalldata,
+            name: isRawCalldata ? undefined : parseFunctionCall(newCall).name,
           };
           return { ...prev, [currentFile.id]: newCalls };
         });
@@ -115,8 +217,99 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
     clearCurrentFileFunctionCallResults();
   };
 
+  // Toggle the simple trace view
+  const handleToggleSimpleTrace = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent parent click handler
+    setShowSimpleTrace(!showSimpleTrace);
+  };
+
+  // Helper function to scroll to the function in the editor
+  const scrollToFunction = (result: UnifiedFunctionCallResult) => {
+    if (result.sourceMapping && "sourceContext" in result.sourceMapping) {
+      const { sourceContext } = result.sourceMapping as SourceMapping;
+      const functionName = result.call.split("(")[0];
+
+      // Find the function range to scroll to
+      for (const [file, ranges] of Object.entries(
+        sourceContext.functionRanges,
+      )) {
+        if (file === currentFile?.name) {
+          const functionRange = ranges.find(
+            (r) =>
+              r.name === functionName ||
+              r.name.toLowerCase() === functionName.toLowerCase(),
+          );
+
+          if (functionRange) {
+            // This will be handled by the editor to scroll to this line
+            setTimeout(() => {
+              const editorElement = document.querySelector(".monaco-editor");
+              if (editorElement) {
+                const editor = (
+                  window as any
+                ).monaco?.editor?.getEditors?.()?.[0];
+                if (editor) {
+                  editor.revealLineInCenter(functionRange.line + 1);
+                  editor.setPosition({
+                    lineNumber: functionRange.line + 1,
+                    column: 1,
+                  });
+                  editor.focus();
+                }
+              }
+            }, 100);
+            break;
+          }
+        }
+      }
+    }
+  };
+
+  // Format the response value for display
+  const formatResponseValue = (response: any) => {
+    if (response === undefined || response === null || response === "") {
+      return null; // Return null to not display anything
+    }
+
+    if (typeof response === "object") {
+      // Use the replacer function to handle BigInt values
+      try {
+        return JSON.stringify(response, replacer, 2);
+      } catch (e) {
+        // Fallback if serialization still fails
+        return String(response);
+      }
+    }
+
+    return String(response);
+  };
+
+  // Helper to safely check for the error property
+  const hasError = (res: UnifiedFunctionCallResult | undefined): boolean => {
+    if (!res) return false;
+    return "error" in res && !!res.error;
+  };
+
+  // Helper to safely get the error message
+  const getErrorMessage = (
+    res: UnifiedFunctionCallResult | undefined,
+  ): string => {
+    if (!res || !("error" in res) || !res.error) return "";
+    return res.error;
+  };
+
   return (
-    <div className="bg-card shadow-sm rounded-lg overflow-hidden border border-color-card">
+    <div
+      className={`bg-card shadow-sm rounded-lg overflow-hidden border transition-all duration-200 ${
+        isActive
+          ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-700"
+          : isHovered
+            ? "border-gray-300 dark:border-gray-600"
+            : "border-color-card"
+      }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <div className="flex items-center p-2 bg-card-header">
         <div className="flex-grow relative">
           <textarea
@@ -129,12 +322,16 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
                 ? "Enter calldata (e.g., 0x...)"
                 : "Enter function call (e.g., set(1))"
             }
+            onClick={(e) => e.stopPropagation()} // Prevent parent click handler
           />
         </div>
         <button
           type="button"
           className="ml-2 p-1 text-error hover:bg-error-hover rounded transition-colors"
-          onClick={handleDelete}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent parent click handler
+            handleDelete();
+          }}
           aria-label="Delete function call"
         >
           <svg
@@ -152,7 +349,99 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
         </button>
       </div>
       {error && <div className="p-2 text-error text-sm">{error}</div>}
-      {result && <ResultDisplay result={result} />}
+
+      {result && (
+        <div className="p-3 border-t border-gray-100 dark:border-gray-800">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center">
+              <div
+                className={`w-2 h-2 rounded-full mr-2 ${
+                  hasError(result) ? "bg-red-500" : "bg-green-500"
+                }`}
+              ></div>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {hasError(result) ? "Failed" : "Success"}
+              </span>
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Gas: {result.gasUsed.toLocaleString()}
+            </div>
+          </div>
+
+          {/* Result display */}
+          <div className="mt-2 text-sm">
+            {hasError(result) ? (
+              <div className="text-red-600 dark:text-red-400 font-mono text-xs p-2 bg-red-50 dark:bg-red-900/20 rounded">
+                {getErrorMessage(result)}
+              </div>
+            ) : (
+              <>
+                {/* Return value section */}
+                {formatResponseValue(result.response) && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Return Value:
+                    </div>
+                    <div className="font-mono text-xs p-2 bg-gray-50 dark:bg-gray-800/50 rounded overflow-x-auto">
+                      {formatResponseValue(result.response)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Events section */}
+                {result.logs && result.logs.length > 0 && (
+                  <div className="mt-3">
+                    <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      Events Emitted ({result.logs.length}):
+                    </div>
+
+                    <div className="mt-2 space-y-2">
+                      {result.logs.map((log, i) => (
+                        <div
+                          key={i}
+                          className="border border-gray-200 dark:border-gray-700 rounded overflow-hidden"
+                        >
+                          <div className="bg-gray-50 dark:bg-gray-800 px-2 py-1 text-xs font-medium border-b border-gray-200 dark:border-gray-700">
+                            {log.eventName || `Event #${i + 1}`}
+                          </div>
+                          <div className="p-2 font-mono text-xs overflow-x-auto">
+                            {JSON.stringify(log.args || log, replacer, 2)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {/* Show trace button */}
+            {result.traces && (
+              <button
+                onClick={handleToggleSimpleTrace}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors 
+                  ${
+                    showSimpleTrace
+                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  }`}
+              >
+                {showSimpleTrace ? "Hide Call Trace" : "Show Call Trace"}
+              </button>
+            )}
+          </div>
+
+          {/* Simple trace view */}
+          {showSimpleTrace && result && (
+            <div className="mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
+              <TraceDisplay traces={result.traces} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

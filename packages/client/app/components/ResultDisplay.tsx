@@ -3,14 +3,76 @@ import TraceDisplay from "./TraceDispaly";
 import { FunctionCallResult } from "../types";
 import { useAppContext } from "../hooks/useAppContext";
 import { decodeRevertData } from "../utils/decodeRevertData";
+import TraceDebugger from "./TraceDebugger";
+import { EnhancedFunctionCallResult } from "../types/sourceMapping";
+import { useTracing } from "../hooks/useTracing";
 
 interface ResultDisplayProps {
-  result: FunctionCallResult;
+  result: EnhancedFunctionCallResult;
 }
 
 const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
   const { currentFileCompilationResult } = useAppContext();
+  const {
+    setActiveTraceResult,
+    activeTraceResult,
+    setIsTraceDebuggerOpen,
+    isTraceDebuggerOpen,
+  } = useTracing();
   const [showTraces, setShowTraces] = useState(false);
+  const [showTraceDebugger, setShowTraceDebugger] = useState(false);
+
+  // Check if this trace is currently active in the editor
+  const isActiveInEditor = activeTraceResult === result;
+
+  // Toggle this trace in the editor with logging
+  const toggleTraceInEditor = () => {
+    if (isActiveInEditor) {
+      console.log("Deactivating trace in editor");
+      setActiveTraceResult(null);
+      setIsTraceDebuggerOpen(false);
+    } else {
+      console.log("Activating trace in editor:", result.call);
+      console.log("Source mapping available:", !!result.sourceMapping);
+
+      // Log some details about the source mapping if available
+      if (result.sourceMapping) {
+        const { sourceContext } = result.sourceMapping;
+        console.log("Source files:", Object.keys(sourceContext.sourceFiles));
+        console.log(
+          "Function mappings:",
+          Object.keys(sourceContext.functionToSteps).join(", "),
+        );
+
+        // Examine full trace for SSTORE operations
+        const allSteps = Object.values(
+          sourceContext.functionToSteps,
+        ).flat() as any[];
+
+        console.log(`Total execution steps: ${allSteps.length}`);
+
+        // Find all SSTORE operations in the trace
+        const sstoreOps = allSteps.filter((step) => step.opName === "SSTORE");
+        console.log(
+          `Found ${sstoreOps.length} SSTORE operations in total:`,
+          sstoreOps,
+        );
+
+        // Check the line mapping for all steps
+        const lineToStepsEntries = Object.entries(sourceContext.lineToSteps);
+        console.log(
+          "Line to steps mapping structure:",
+          lineToStepsEntries.map(
+            ([file, lineMap]) =>
+              `${file}: ${Object.keys(lineMap).length} lines mapped`,
+          ),
+        );
+      }
+
+      setActiveTraceResult(result);
+      setIsTraceDebuggerOpen(true);
+    }
+  };
 
   // Check if the transaction reverted
   const hasReverted = () => {
@@ -58,27 +120,35 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
   const isReverted = hasReverted();
 
   return (
-    <div className="p-4 bg-result border-t border-color-card space-y-3">
-      <div className="flex items-baseline">
-        <span className="text-sm font-semibold text-secondary w-20">
-          {isReverted ? "Reverted:" : "Returned:"}
-        </span>
-        {!isReverted ? (
-          <span className="font-mono text-sm text-success bg-success-bg px-2 py-1 rounded">
-            {result.response}
-          </span>
-        ) : (
-          <span className="font-mono text-sm text-error bg-error-bg px-2 py-1 rounded">
-            {getRevertReason()}
-          </span>
-        )}
-      </div>
+    <div
+      className={`p-4 rounded-md ${
+        isReverted ? "bg-error-bg" : "bg-success-bg"
+      }`}
+    >
+      <div className="flex justify-between items-start">
+        <div>
+          <h3 className="text-lg font-bold">
+            <span className={`${isReverted ? "text-error" : "text-success"}`}>
+              {isReverted ? "Reverted" : "Success"}
+            </span>
+            <span className="ml-2 text-base font-normal text-primary">
+              {result.call}
+            </span>
+          </h3>
 
-      <div className="flex items-baseline">
-        <span className="text-sm font-semibold text-secondary w-20">
-          Gas used:
-        </span>
-        <span className="font-mono text-sm text-success">{result.gasUsed}</span>
+          <div className="mt-2 font-mono text-sm">
+            <div>
+              <span className="text-secondary">Gas Used:</span>{" "}
+              <span className="text-primary">{result.gasUsed}</span>
+            </div>
+            <div>
+              <span className="text-secondary">Result:</span>{" "}
+              <span className="text-primary overflow-hidden overflow-ellipsis">
+                {isReverted ? getRevertReason() : result.response}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-1">
@@ -113,19 +183,46 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
             </div>
           ))}
       </div>
-      {result.traces && (
-        <div>
+
+      <div className="mt-4 space-x-2 flex flex-wrap">
+        {result.traces && (
           <button
             type="button"
             onClick={() => setShowTraces(!showTraces)}
-            className="px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors"
+            className="px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors mb-2"
           >
-            {showTraces ? "Hide Traces" : "Show Traces"}
+            {showTraces ? "Hide Basic Traces" : "Show Basic Traces"}
           </button>
+        )}
 
-          {showTraces && <TraceDisplay traces={result.traces} />}
-        </div>
-      )}
+        {result.sourceMapping && (
+          <button
+            type="button"
+            onClick={() => setShowTraceDebugger(!showTraceDebugger)}
+            className="px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors mb-2"
+          >
+            {showTraceDebugger
+              ? "Hide Source Trace Debugger"
+              : "Show Source Trace Debugger"}
+          </button>
+        )}
+
+        {result.sourceMapping && (
+          <button
+            type="button"
+            onClick={toggleTraceInEditor}
+            className={`px-2 py-1 ${isActiveInEditor ? "bg-success" : "bg-accent"} text-white rounded hover:bg-accent-hover transition-colors mb-2`}
+          >
+            {isActiveInEditor ? "Hide Trace in Editor" : "Show Trace in Editor"}
+          </button>
+        )}
+
+        {showTraces && <TraceDisplay traces={result.traces} />}
+
+        {showTraceDebugger && result.sourceMapping && (
+          <TraceDebugger result={result} />
+        )}
+      </div>
     </div>
   );
 };

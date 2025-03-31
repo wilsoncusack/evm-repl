@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { AppContext } from "../contexts/AppContext";
 import type {
   CompilationResult,
@@ -25,6 +25,8 @@ import {
 import axios from "axios";
 import { useDebounce } from "../hooks/useDebounce";
 import { extractFileName, replacer } from "../utils";
+import { enhanceFunctionCallResult } from "../utils/traceEnhancer";
+import { EnhancedFunctionCallResult } from "../types/sourceMapping";
 
 // Add a shared networks configuration that can be used throughout the app
 export const SUPPORTED_NETWORKS: ChainOption[] = [
@@ -53,12 +55,16 @@ export const AppProvider: React.FC<{
   >(undefined);
   const [isCompiling, setIsCompiling] = useState(false);
   const [currentFileFunctionCallResults, setCurrentFileFunctionCallResults] =
-    useState<FunctionCallResult[] | undefined>(undefined);
+    useState<EnhancedFunctionCallResult[] | undefined>(undefined);
   const [forkConfig, setForkConfig] = useState<ForkConfig>({
     chainId: 8453, // Default to Base
   });
   const [availableChains, setAvailableChains] =
     useState<ChainOption[]>(SUPPORTED_NETWORKS);
+  const [activeTraceId, setActiveTraceId] = useState<string | null>(null);
+  const [isTraceDebuggerOpen, setIsTraceDebuggerOpen] =
+    useState<boolean>(false);
+  const [showDetailedPanel, setShowDetailedPanel] = useState<boolean>(true);
 
   const currentFile = useMemo(() => {
     return files.find((f) => f.id === currentFileId);
@@ -140,7 +146,13 @@ export const AppProvider: React.FC<{
       return;
     }
 
-    const filteredCalls = calls.filter((call) => call.encodedCalldata);
+    // Add bytecode to each function call for tracing purposes
+    const enrichedCalls = calls.map((call) => ({
+      ...call,
+      contractBytecode: bytecode as Hex,
+    }));
+
+    const filteredCalls = enrichedCalls.filter((call) => call.encodedCalldata);
 
     const encodedCalls: { calldata: Hex; value: string; caller: Address }[] =
       [];
@@ -165,55 +177,87 @@ export const AppProvider: React.FC<{
             chainId: forkConfig.chainId,
             blockNumber: forkConfig.blockNumber,
           },
+          traceMode: "debug",
         },
       );
 
       const results = response.data;
 
-      const output: FunctionCallResult[] = results.map((result, i) => {
-        if (!abi) {
-          return {
-            call: filteredCalls[i].name || "",
-            gasUsed: result.gasUsed,
-            response: result.result,
-            // TODO: try to dump raw logs
-            rawLogs: result.logs,
-            traces: result.traces,
-          };
+      // Prepare source files map
+      const sourceFiles: Record<string, string> = {
+        [currentFile.name]: currentFile.content,
+      };
+
+      // Add any imported files from other files in the project
+      files.forEach((file) => {
+        if (file.id !== currentFile.id) {
+          sourceFiles[file.name] = file.content;
         }
+      });
+
+      console.log("Source files for mapping:", Object.keys(sourceFiles));
+
+      // Enhanced results with source mapping
+      const enhancedResults: EnhancedFunctionCallResult[] = [];
+
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        const functionCall = filteredCalls[i];
 
         let returned: string;
         try {
-          returned = String(
-            decodeFunctionResult({
-              abi,
-              functionName: calls[i].name,
-              data: result.result,
-            }),
-          );
+          if (abi) {
+            returned = String(
+              decodeFunctionResult({
+                abi,
+                functionName: calls[i].name,
+                data: result.result,
+              }),
+            );
+          } else {
+            returned = result.result;
+          }
         } catch (e) {
           returned = result.result;
         }
-        const logs: DecodeEventLogReturnType[] = result.logs.map((log) =>
-          decodeEventLog({
-            abi,
-            data: log.data,
-            topics: log.topics,
-          }),
-        );
 
-        return {
-          // biome-ignore lint/style/noNonNullAssertion: all filtered calls have a name
-          call: filteredCalls[i].name!,
+        const logs: DecodeEventLogReturnType[] = abi
+          ? result.logs.map((log) =>
+              decodeEventLog({
+                abi,
+                data: log.data,
+                topics: log.topics,
+              }),
+            )
+          : [];
+
+        // Create basic function call result
+        const basicResult: FunctionCallResult = {
+          call: functionCall.name || "",
           gasUsed: result.gasUsed,
           response: returned,
           logs,
-          traces: result.traces,
           rawLogs: result.logs,
+          traces: result.traces,
         };
-      });
 
-      setCurrentFileFunctionCallResults(output);
+        // Enhance with source mapping if compilation result exists
+        if (compilationResult) {
+          enhancedResults.push(
+            enhanceFunctionCallResult(
+              basicResult,
+              functionCall,
+              compilationResult,
+              sourceFiles,
+            ),
+          );
+        } else {
+          // If no compilation result, just use the basic result
+          enhancedResults.push(basicResult as EnhancedFunctionCallResult);
+        }
+      }
+
+      setCurrentFileFunctionCallResults(enhancedResults);
     } catch (error) {
       console.error("Execution error:", error);
     }
@@ -222,6 +266,8 @@ export const AppProvider: React.FC<{
     filesFunctionCalls,
     currentFileCompilationResult,
     forkConfig,
+    files,
+    compilationResult,
   ]);
 
   const addNewContract = useCallback((newFile: SolidityFile) => {
@@ -234,20 +280,78 @@ export const AppProvider: React.FC<{
     }));
   }, []);
 
-  const debouncedRefreshFunctionCallResult = useDebounce(
-    refreshFunctionCallResult,
-    300,
+  // Create a stable version of refreshFunctionCallResult that doesn't depend on currentFile
+  // This is the key to breaking the dependency cycle
+  const stableRefreshFunctionCallResult = useCallback(() => {
+    // We invoke the actual refresh function, but this wrapper doesn't need
+    // to list currentFile as a dependency because it's captured in the closure
+    refreshFunctionCallResult();
+  }, [refreshFunctionCallResult]);
+
+  const debouncedStableRefresh = useDebounce(
+    stableRefreshFunctionCallResult,
+    1000,
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: want to update when any of these change
+  // Track if we're waiting for compilation to complete
+  const isWaitingForCompilation = useRef(false);
+
+  // Track compilation versions to know if a new compilation happened
+  const fileChangeVersion = useRef(0);
+  const lastCompiledVersion = useRef(0);
+
+  // Effect for file changes - mark that we're waiting for compilation
   useEffect(() => {
-    debouncedRefreshFunctionCallResult();
+    // When files change, mark that we're waiting for compilation results
+    // and increment the fileChangeVersion to track this change
+    isWaitingForCompilation.current = true;
+    fileChangeVersion.current += 1;
+  }, [files]);
+
+  // Track compilation status
+  useEffect(() => {
+    // When compilation completes, update the lastCompiledVersion
+    if (!isCompiling && compilationResult && isWaitingForCompilation.current) {
+      lastCompiledVersion.current = fileChangeVersion.current;
+    }
+  }, [isCompiling, compilationResult]);
+
+  // Effect that triggers function call refresh ONLY after compilation completes
+  useEffect(() => {
+    // Skip initial run with undefined compilation result
+    if (!compilationResult) {
+      return;
+    }
+
+    // Only clear the waiting flag if we have a recent compilation
+    if (
+      isWaitingForCompilation.current &&
+      lastCompiledVersion.current === fileChangeVersion.current
+    ) {
+      isWaitingForCompilation.current = false;
+      debouncedStableRefresh();
+    } else if (!isWaitingForCompilation.current) {
+      // If not waiting but compilation result changed (e.g., initial load)
+      debouncedStableRefresh();
+    }
+  }, [compilationResult, debouncedStableRefresh]);
+
+  // Effect for non-compilation-related triggers for function call refresh
+  useEffect(() => {
+    // Skip during initial render
+    if (!compilationResult) {
+      return;
+    }
+
+    // Only run if we're not waiting for compilation
+    if (!isWaitingForCompilation.current) {
+      debouncedStableRefresh();
+    }
   }, [
-    compilationResult,
-    currentFile,
     filesFunctionCalls,
-    debouncedRefreshFunctionCallResult,
     forkConfig,
+    debouncedStableRefresh,
+    compilationResult,
   ]);
 
   const value = {
@@ -268,6 +372,12 @@ export const AppProvider: React.FC<{
     setForkConfig,
     availableChains,
     setAvailableChains,
+    activeTraceId,
+    setActiveTraceId,
+    isTraceDebuggerOpen,
+    setIsTraceDebuggerOpen,
+    showDetailedPanel,
+    setShowDetailedPanel,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

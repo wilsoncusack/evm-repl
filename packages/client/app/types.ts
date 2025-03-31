@@ -106,6 +106,7 @@ export interface FunctionCall {
   value?: bigint;
   caller?: Address;
   encodedCalldata?: Hex;
+  contractBytecode?: Hex;
 }
 
 export interface SolidityFile {

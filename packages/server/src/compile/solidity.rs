@@ -1,8 +1,10 @@
 use foundry_compilers::{
-    contracts::VersionedContracts, multi::MultiCompilerError, Project, ProjectPathsConfig,
+    artifacts::sourcemap::SourceElement, contracts::VersionedContracts, multi::MultiCompilerError,
+    Artifact, Project, ProjectPathsConfig,
 };
 use serde::{Deserialize, Serialize};
-use std::fs;
+use serde_json;
+use std::{collections::BTreeMap, fs, path::Path};
 use tempfile::{self, TempDir};
 
 #[derive(Deserialize)]
@@ -11,10 +13,60 @@ pub struct SolidityFile {
     pub content: String,
 }
 
+// Define a new struct to represent a source element in a more serializable way
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub struct SerializableSourceElement {
+    pub offset: u32,
+    pub length: u32,
+    pub index: i32,
+    pub jump_type: String,
+    pub modifier_depth: u32,
+}
+
 #[derive(Debug, Serialize)]
 pub struct CompileResult {
     pub errors: Vec<MultiCompilerError>,
     pub contracts: VersionedContracts,
+    pub source_maps: BTreeMap<String, String>,
+}
+
+// Helper function to process source map data and convert to JSON string
+fn process_source_map_data(
+    source_map_data: &Vec<SourceElement>,
+    file_path: &Path,
+    contract_name: &str,
+    is_deployed: bool,
+) -> (String, String) {
+    // Convert to our serializable format
+    let serializable_data: Vec<SerializableSourceElement> = source_map_data
+        .iter()
+        .map(|elem| {
+            // Get jump type directly
+            let jump_str = format!("{:?}", elem.jump());
+
+            SerializableSourceElement {
+                offset: elem.offset(),
+                length: elem.length(),
+                index: elem.index_i32(),
+                jump_type: jump_str,
+                modifier_depth: elem.modifier_depth(),
+            }
+        })
+        .collect();
+
+    // Serialize to JSON
+    let source_map_string = serde_json::to_string(&serializable_data)
+        .unwrap_or_else(|_| format!("{:?}", serializable_data));
+
+    // Create the appropriate key based on whether it's deployed bytecode
+    let key = if is_deployed {
+        format!("{}:deployed:{}", file_path.display(), contract_name)
+    } else {
+        format!("{}:{}", file_path.display(), contract_name)
+    };
+
+    (key, source_map_string)
 }
 
 pub fn compile(files: &[SolidityFile]) -> Result<CompileResult, eyre::Error> {
@@ -44,9 +96,40 @@ pub fn compile(files: &[SolidityFile]) -> Result<CompileResult, eyre::Error> {
 
     let output = project.compile()?;
 
+    println!("Output: {:?}", output);
+
+    let mut source_maps = BTreeMap::new();
+    // let mut generated_sources = BTreeMap::new();
+
+    // Using the contracts_with_files_and_version iterator method
+    for (file_path, contract_name, contract, _) in
+        output.output().contracts.contracts_with_files_and_version()
+    {
+        // Simplified approach: use get_source_map functions directly
+        // Get creation bytecode source map
+        if let Some(source_map_result) = contract.get_source_map() {
+            if let Ok(source_map_data) = source_map_result {
+                let (key, value) =
+                    process_source_map_data(&source_map_data, &file_path, contract_name, false);
+                source_maps.insert(key, value);
+            }
+        }
+
+        // Get deployed bytecode source map
+        if let Some(source_map_result) = contract.get_source_map_deployed() {
+            if let Ok(source_map_data) = source_map_result {
+                let (key, value) =
+                    process_source_map_data(&source_map_data, &file_path, contract_name, true);
+                source_maps.insert(key, value);
+            }
+        }
+    }
+
     Ok(CompileResult {
         errors: output.output().errors.clone(),
         contracts: output.output().contracts.clone(),
+        source_maps,
+        // generated_sources,
     })
 }
 

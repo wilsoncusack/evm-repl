@@ -3,6 +3,7 @@
 
 import React, { useMemo } from "react";
 import { useAppContext } from "../hooks/useAppContext";
+import { useTracing } from "../hooks/useTracing";
 import FunctionCallItem from "./FunctionCallItem";
 import ForkConfigPanel from "./ForkConfigPanel";
 import { Chain } from "viem";
@@ -17,6 +18,8 @@ const FunctionCallsPanel: React.FC = () => {
     forkConfig,
     availableChains,
   } = useAppContext();
+
+  const { activeTraceResult } = useTracing();
 
   const functionCalls = useMemo(() => {
     if (!currentFile) return [];
