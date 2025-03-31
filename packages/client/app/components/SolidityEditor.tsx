@@ -40,6 +40,16 @@ const EditorStyles = () => {
         background-color: rgba(59, 130, 246, 0.9);
       }
       
+      /* Fix for bottom margin */
+      .monaco-editor {
+        margin-bottom: 0 !important;
+      }
+      
+      /* Force editor to fill container */
+      .monaco-editor, .monaco-editor-background, .monaco-editor .inputarea.ime-input {
+        height: 100% !important;
+      }
+      
       /* Gas heatmap colors - Updated for better visibility */
       .gas-heatmap-very-low {
         border-left: 4px solid rgba(74, 222, 128, 0.7);
@@ -348,16 +358,21 @@ const DetailedTraceStep: React.FC<{
           {showStack && (
             <div className="ml-4 mt-1 flex flex-col gap-0.5 border-l border-gray-200 dark:border-gray-700 pl-2">
               {/* Map through stack in normal order (0 at top) */}
-              {step.stack.map((item: string, i: number) => (
+              {step.stack.slice(0, 15).map((item: string, i: number) => (
                 <div key={i} className="flex items-center">
                   <span className="text-[9px] text-gray-500 dark:text-gray-400 w-6 text-right mr-1">
                     {i}:
                   </span>
-                  <span className="text-[10px] font-mono bg-gray-50 dark:bg-gray-800/60 px-1 rounded overflow-x-auto">
+                  <span className="text-[10px] font-mono bg-gray-50 dark:bg-gray-800/60 px-1 rounded overflow-hidden text-ellipsis max-w-[150px]">
                     {item}
                   </span>
                 </div>
               ))}
+              {step.stack.length > 15 && (
+                <div className="text-[9px] text-gray-500 italic ml-2 mt-1">
+                  + {step.stack.length - 15} more items
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1218,14 +1233,6 @@ const SolidityEditor: React.FC = () => {
     }
   }, [activeTraceResult, setCurrentFunction]);
 
-  // Add a toggle button to the UI
-  <button 
-    onClick={() => setShowDeploymentGas(!showDeploymentGas)}
-    className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded"
-  >
-    {showDeploymentGas ? "Hide Deployment Gas" : "Show Deployment Gas"}
-  </button>
-
   // In the gas calculation logic, check if the step is from deployment or runtime
   const isDeploymentStep = (step: any) => {
     // Check if this step is from deployment bytecode
@@ -1294,20 +1301,20 @@ const SolidityEditor: React.FC = () => {
       <div className="flex-grow bg-editor shadow-md overflow-hidden border border-color-editor">
         {currentFile?.address && (
           <div className="p-2 bg-editor-header flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center">
-              <span className="text-sm font-mono mr-2 text-secondary">
+            <div className="flex items-center flex-grow">
+              <span className="text-xs font-mono mr-2 text-secondary whitespace-nowrap">
                 Contract:
               </span>
-              <div className="flex items-center bg-editor-address border border-color-editor-address rounded-md overflow-hidden">
-                <span className="text-sm font-mono px-2 py-1 text-primary">
+              <div className="flex items-center bg-editor-address border border-color-editor-address rounded-md overflow-hidden max-w-[220px]">
+                <span className="text-xs font-mono px-2 py-1 text-primary truncate">
                   {currentFile.address}
                 </span>
                 <CopyToClipboard text={currentFile.address} onCopy={handleCopy}>
-                  <button className="px-2 py-1 bg-editor-button hover:bg-editor-button-hover transition-colors text-xs border-l border-color-editor-address focus:outline-none focus:ring-2 focus:ring-accent">
+                  <button className="px-1.5 py-1 bg-editor-button hover:bg-editor-button-hover transition-colors text-xs border-l border-color-editor-address focus:outline-none focus:ring-2 focus:ring-accent flex-shrink-0">
                     {copied ? (
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4 text-blue-500"
+                        className="h-3.5 w-3.5 text-blue-500"
                         viewBox="0 0 20 20"
                         fill="currentColor"
                       >
@@ -1320,7 +1327,7 @@ const SolidityEditor: React.FC = () => {
                     ) : (
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4 text-secondary"
+                        className="h-3.5 w-3.5 text-secondary"
                         viewBox="0 0 20 20"
                         fill="currentColor"
                       >
@@ -1331,6 +1338,26 @@ const SolidityEditor: React.FC = () => {
                   </button>
                 </CopyToClipboard>
               </div>
+              
+              <button 
+                onClick={() => setShowGasHeatmap(!showGasHeatmap)}
+                className={`ml-3 text-xs px-2.5 py-1 rounded-md transition-colors border ${
+                  showGasHeatmap 
+                    ? 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900/30' 
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    {showGasHeatmap ? (
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                    ) : (
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9 9a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm3 0a1 1 0 00-1-1h-.01a1 1 0 100 2H11a1 1 0 001-1z" clipRule="evenodd" />
+                    )}
+                  </svg>
+                  <span>{showGasHeatmap ? "Hide Gas Usage" : "Show Gas Usage"}</span>
+                </div>
+              </button>
             </div>
             
             {updatedActiveTraceResult && updatedIsTraceDebuggerOpen && (
@@ -1377,6 +1404,7 @@ const SolidityEditor: React.FC = () => {
                     cursorBlinking: "smooth",
                     smoothScrolling: true,
                     cursorSmoothCaretAnimation: "on",
+                    padding: { bottom: 0, top: 5 },
                   }}
                 />
               ) : (
@@ -1391,7 +1419,7 @@ const SolidityEditor: React.FC = () => {
           
           {/* Streamlined detail panel - only show when both conditions are true */}
           {showDetailedPanel && isTraceDebuggerOpen && activeTraceResult && activeTraceResult.sourceMapping && (
-            <div className="w-1/4 h-full overflow-y-auto border-l border-gray-200 dark:border-gray-700">
+            <div className="w-1/4 h-full overflow-y-auto border-l border-gray-200 dark:border-gray-700 flex flex-col">
               <div className="bg-gray-100 dark:bg-gray-800 p-2 sticky top-0 z-20 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200">
                   <div className="flex items-center">
@@ -1411,11 +1439,11 @@ const SolidityEditor: React.FC = () => {
                 )}
               </div>
               
-              <div>
+              <div className="flex-1 overflow-y-auto pb-8">
                 {selectedLine !== null && getStepsForSelectedLine.length > 0 && (
                   <>
                     {/* Compact gas usage summary */}
-                    <div className="flex items-center justify-between p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 text-xs">
+                    <div className="flex items-center justify-between p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 text-xs sticky top-0 z-10">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-700 dark:text-gray-300">Gas:</span>
                         <span className="font-mono bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded text-blue-700 dark:text-blue-300">
@@ -1427,8 +1455,8 @@ const SolidityEditor: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Execution steps */}
-                    <div className="pb-4">
+                    {/* Execution steps with bottom padding */}
+                    <div className="pb-16">
                       {getStepsForSelectedLine.map((step, index) => (
                         <DetailedTraceStep 
                           key={index}
@@ -1439,6 +1467,8 @@ const SolidityEditor: React.FC = () => {
                           onMouseLeave={() => setHoveredStepIndex(null)}
                         />
                       ))}
+                      {/* Add invisible element at the bottom to ensure scrollability */}
+                      <div className="h-8" aria-hidden="true"></div>
                     </div>
                   </>
                 )}
@@ -1457,14 +1487,6 @@ const SolidityEditor: React.FC = () => {
           <CompileErrorDisplay errors={relevantErrors} />
         </div>
       )}
-      <div className="flex items-center space-x-2 mb-2">
-        <button 
-          onClick={() => setShowGasHeatmap(!showGasHeatmap)}
-          className={`text-xs px-2 py-1 ${showGasHeatmap ? 'bg-green-100 hover:bg-green-200' : 'bg-gray-100 hover:bg-gray-200'} rounded`}
-        >
-          {showGasHeatmap ? "Hide Gas Usage" : "Show Gas Usage"}
-        </button>
-      </div>
     </div>
   );
 };

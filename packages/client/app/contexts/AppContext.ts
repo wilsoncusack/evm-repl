@@ -8,6 +8,7 @@ import type {
   FunctionCallResult,
   SolidityFile,
 } from "../types";
+import { EnhancedFunctionCallResult } from "../types/sourceMapping";
 
 interface AppContextType {
   files: SolidityFile[];
@@ -18,7 +19,7 @@ interface AppContextType {
   >;
   currentFile?: SolidityFile;
   currentFileCompilationResult?: CompilationResult["contracts"][0][0][0]["contract"];
-  currentFileFunctionCallResults?: FunctionCallResult[];
+  currentFileFunctionCallResults?: EnhancedFunctionCallResult[];
   setCurrentFileId: React.Dispatch<React.SetStateAction<FileId>>;
   compilationResult?: CompilationResult;
   isCompiling: boolean;
@@ -28,6 +29,13 @@ interface AppContextType {
   forkConfig: ForkConfig;
   setForkConfig: React.Dispatch<React.SetStateAction<ForkConfig>>;
   availableChains: ChainOption[];
+  setAvailableChains: React.Dispatch<React.SetStateAction<ChainOption[]>>;
+  activeTraceId: string | null;
+  setActiveTraceId: (id: string | null) => void;
+  isTraceDebuggerOpen: boolean;
+  setIsTraceDebuggerOpen: (open: boolean) => void;
+  showDetailedPanel: boolean;
+  setShowDetailedPanel: (show: boolean) => void;
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);

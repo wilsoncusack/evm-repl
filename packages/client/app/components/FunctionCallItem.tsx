@@ -11,8 +11,9 @@ import ResultDisplay from "./ResultDisplay";
 import TraceDebugger from "./TraceDebugger";
 import TraceDisplay from "./TraceDispaly";
 import { replacer } from "../utils";
+import { EnhancedFunctionCallResult, SourceTraceMapping } from "../types/sourceMapping";
 
-// Add extended type definition for source mapping
+// Add extended type definition for source mapping that's compatible with both systems
 interface SourceContext {
   functionRanges: Record<string, Array<{
     name: string;
@@ -30,10 +31,13 @@ interface ExtendedFunctionCallResult extends FunctionCallResult {
   error?: string;
 }
 
+// Unified result type that works with both systems
+type UnifiedFunctionCallResult = EnhancedFunctionCallResult | (ExtendedFunctionCallResult & { error?: string });
+
 interface FunctionCallItemProps {
-  call: FunctionCall;
+  call: FunctionCall & { id?: string }; // Add explicit id property
   index: number;
-  result?: ExtendedFunctionCallResult;
+  result?: UnifiedFunctionCallResult;
   isRawCalldata: boolean;
 }
 
@@ -66,7 +70,7 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
   // Check if this call is the active trace
   const isActive = activeTraceResult && 
     result && 
-    call.id && 
+    'id' in call && call.id && 
     activeTraceId === call.id;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: only want this to run when compilation changes
@@ -77,32 +81,45 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
   // Add a unique ID to each function call
   useEffect(() => {
     // Generate a unique ID for this call if it doesn't have one
-    if (!call.id) {
+    if (!('id' in call) && currentFile) {
       setFilesFunctionCalls((prev) => {
         const newCalls = [...(prev[currentFile.id] || [])];
-        newCalls[index] = {
+        const newId = `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Create a new object with the correct shape
+        const updatedCall = {
           ...newCalls[index],
-          id: `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+          rawInput: newCalls[index].rawInput,
+          id: newId
         };
+        
+        newCalls[index] = updatedCall;
         return { ...prev, [currentFile.id]: newCalls };
       });
     }
-  }, []);
+  }, [call, currentFile, index, setFilesFunctionCalls]);
 
   // Show debugger trace when hovering
   useEffect(() => {
     if (isHovered && result) {
-      setActiveTraceResult(result);
+      // Convert or cast the result to EnhancedFunctionCallResult as needed
+      const traceResult = result as EnhancedFunctionCallResult;
+      
+      // Set the active trace result in the TracingContext
+      setActiveTraceResult(traceResult);
+      
+      // Set the trace debugger open state in AppContext
       setIsTraceDebuggerOpen(true);
       
-      // Set the active trace ID
-      if (call.id) {
+      // Set the active trace ID if we have one
+      if ('id' in call && call.id) {
         setActiveTraceId(call.id);
       }
       
+      // Scroll to the function in the editor
       scrollToFunction(result);
     }
-  }, [isHovered, result, call.id, setActiveTraceResult, setIsTraceDebuggerOpen, setActiveTraceId]);
+  }, [isHovered, result, call, setActiveTraceResult, setIsTraceDebuggerOpen, setActiveTraceId]);
 
   const handleFunctionCallsChange = useCallback(
     (newCall: string, index: number) => {
@@ -193,9 +210,9 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
   };
   
   // Helper function to scroll to the function in the editor
-  const scrollToFunction = (result: ExtendedFunctionCallResult) => {
-    if (result.sourceMapping && result.sourceMapping.sourceContext) {
-      const { sourceContext } = result.sourceMapping;
+  const scrollToFunction = (result: UnifiedFunctionCallResult) => {
+    if (result.sourceMapping && 'sourceContext' in result.sourceMapping) {
+      const { sourceContext } = result.sourceMapping as SourceMapping;
       const functionName = result.call.split('(')[0];
       
       // Find the function range to scroll to
@@ -243,6 +260,18 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
     }
     
     return String(response);
+  };
+
+  // Helper to safely check for the error property
+  const hasError = (res: UnifiedFunctionCallResult | undefined): boolean => {
+    if (!res) return false;
+    return 'error' in res && !!res.error;
+  };
+  
+  // Helper to safely get the error message
+  const getErrorMessage = (res: UnifiedFunctionCallResult | undefined): string => {
+    if (!res || !('error' in res) || !res.error) return '';
+    return res.error;
   };
 
   return (
@@ -302,10 +331,10 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center">
               <div className={`w-2 h-2 rounded-full mr-2 ${
-                result.error ? 'bg-red-500' : 'bg-green-500'
+                hasError(result) ? 'bg-red-500' : 'bg-green-500'
               }`}></div>
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {result.error ? 'Failed' : 'Success'}
+                {hasError(result) ? 'Failed' : 'Success'}
               </span>
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -315,9 +344,9 @@ const FunctionCallItem: React.FC<FunctionCallItemProps> = ({
           
           {/* Result display */}
           <div className="mt-2 text-sm">
-            {result.error ? (
+            {hasError(result) ? (
               <div className="text-red-600 dark:text-red-400 font-mono text-xs p-2 bg-red-50 dark:bg-red-900/20 rounded">
-                {result.error}
+                {getErrorMessage(result)}
               </div>
             ) : (
               <>
