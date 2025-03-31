@@ -287,7 +287,7 @@ export const AppProvider: React.FC<{
     refreshFunctionCallResult();
   }, [refreshFunctionCallResult]);
 
-  const debouncedStableRefresh = useDebounce(stableRefreshFunctionCallResult, 300);
+  const debouncedStableRefresh = useDebounce(stableRefreshFunctionCallResult, 1000);
 
   // Track if we're waiting for compilation to complete
   const isWaitingForCompilation = useRef(false);
