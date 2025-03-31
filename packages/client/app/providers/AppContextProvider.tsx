@@ -62,7 +62,8 @@ export const AppProvider: React.FC<{
   const [availableChains, setAvailableChains] =
     useState<ChainOption[]>(SUPPORTED_NETWORKS);
   const [activeTraceId, setActiveTraceId] = useState<string | null>(null);
-  const [isTraceDebuggerOpen, setIsTraceDebuggerOpen] = useState<boolean>(false);
+  const [isTraceDebuggerOpen, setIsTraceDebuggerOpen] =
+    useState<boolean>(false);
   const [showDetailedPanel, setShowDetailedPanel] = useState<boolean>(true);
 
   const currentFile = useMemo(() => {
@@ -146,9 +147,9 @@ export const AppProvider: React.FC<{
     }
 
     // Add bytecode to each function call for tracing purposes
-    const enrichedCalls = calls.map(call => ({
+    const enrichedCalls = calls.map((call) => ({
       ...call,
-      contractBytecode: bytecode as Hex
+      contractBytecode: bytecode as Hex,
     }));
 
     const filteredCalls = enrichedCalls.filter((call) => call.encodedCalldata);
@@ -176,7 +177,7 @@ export const AppProvider: React.FC<{
             chainId: forkConfig.chainId,
             blockNumber: forkConfig.blockNumber,
           },
-          traceMode: 'debug'
+          traceMode: "debug",
         },
       );
 
@@ -186,15 +187,15 @@ export const AppProvider: React.FC<{
       const sourceFiles: Record<string, string> = {
         [currentFile.name]: currentFile.content,
       };
-      
+
       // Add any imported files from other files in the project
-      files.forEach(file => {
+      files.forEach((file) => {
         if (file.id !== currentFile.id) {
           sourceFiles[file.name] = file.content;
         }
       });
-      
-      console.log('Source files for mapping:', Object.keys(sourceFiles));
+
+      console.log("Source files for mapping:", Object.keys(sourceFiles));
 
       // Enhanced results with source mapping
       const enhancedResults: EnhancedFunctionCallResult[] = [];
@@ -202,7 +203,7 @@ export const AppProvider: React.FC<{
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
         const functionCall = filteredCalls[i];
-        
+
         let returned: string;
         try {
           if (abi) {
@@ -219,7 +220,7 @@ export const AppProvider: React.FC<{
         } catch (e) {
           returned = result.result;
         }
-        
+
         const logs: DecodeEventLogReturnType[] = abi
           ? result.logs.map((log) =>
               decodeEventLog({
@@ -239,7 +240,7 @@ export const AppProvider: React.FC<{
           rawLogs: result.logs,
           traces: result.traces,
         };
-        
+
         // Enhance with source mapping if compilation result exists
         if (compilationResult) {
           enhancedResults.push(
@@ -247,8 +248,8 @@ export const AppProvider: React.FC<{
               basicResult,
               functionCall,
               compilationResult,
-              sourceFiles
-            )
+              sourceFiles,
+            ),
           );
         } else {
           // If no compilation result, just use the basic result
@@ -287,11 +288,14 @@ export const AppProvider: React.FC<{
     refreshFunctionCallResult();
   }, [refreshFunctionCallResult]);
 
-  const debouncedStableRefresh = useDebounce(stableRefreshFunctionCallResult, 1000);
+  const debouncedStableRefresh = useDebounce(
+    stableRefreshFunctionCallResult,
+    1000,
+  );
 
   // Track if we're waiting for compilation to complete
   const isWaitingForCompilation = useRef(false);
-  
+
   // Track compilation versions to know if a new compilation happened
   const fileChangeVersion = useRef(0);
   const lastCompiledVersion = useRef(0);
@@ -318,19 +322,19 @@ export const AppProvider: React.FC<{
     if (!compilationResult) {
       return;
     }
-    
+
     // Only clear the waiting flag if we have a recent compilation
-    if (isWaitingForCompilation.current && lastCompiledVersion.current === fileChangeVersion.current) {
+    if (
+      isWaitingForCompilation.current &&
+      lastCompiledVersion.current === fileChangeVersion.current
+    ) {
       isWaitingForCompilation.current = false;
       debouncedStableRefresh();
     } else if (!isWaitingForCompilation.current) {
       // If not waiting but compilation result changed (e.g., initial load)
       debouncedStableRefresh();
     }
-  }, [
-    compilationResult, 
-    debouncedStableRefresh
-  ]);
+  }, [compilationResult, debouncedStableRefresh]);
 
   // Effect for non-compilation-related triggers for function call refresh
   useEffect(() => {
@@ -338,7 +342,7 @@ export const AppProvider: React.FC<{
     if (!compilationResult) {
       return;
     }
-    
+
     // Only run if we're not waiting for compilation
     if (!isWaitingForCompilation.current) {
       debouncedStableRefresh();
@@ -347,7 +351,7 @@ export const AppProvider: React.FC<{
     filesFunctionCalls,
     forkConfig,
     debouncedStableRefresh,
-    compilationResult
+    compilationResult,
   ]);
 
   const value = {

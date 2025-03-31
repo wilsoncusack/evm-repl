@@ -1,5 +1,11 @@
-import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
-import { useAppContext } from '../hooks/useAppContext';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useMemo,
+  useEffect,
+} from "react";
+import { useAppContext } from "../hooks/useAppContext";
 
 // Define the context type
 interface TracingContextType {
@@ -21,43 +27,55 @@ interface TracingContextType {
 const TracingContext = createContext<TracingContextType | undefined>(undefined);
 
 // Create the provider
-export const TracingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { 
+export const TracingProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const {
     currentFileFunctionCallResults,
     activeTraceId,
     currentFile,
-    filesFunctionCalls
+    filesFunctionCalls,
   } = useAppContext();
-  
+
   // Local state
   const [activeTraceResult, setActiveTraceResult] = useState<any | null>(null);
   const [currentFunction, setCurrentFunction] = useState<string | null>(null);
   const [highlightedLine, setHighlightedLine] = useState<number | null>(null);
   const [showOnlyCurrentFunction, setShowOnlyCurrentFunction] = useState(true);
   const [showGasHeatmap, setShowGasHeatmap] = useState(true);
-  const [lineExecutionCounts, setLineExecutionCounts] = useState<Record<number, number>>({});
-  const [lineOpcodeCategories, setLineOpcodeCategories] = useState<Record<number, string[]>>({});
-  
+  const [lineExecutionCounts, setLineExecutionCounts] = useState<
+    Record<number, number>
+  >({});
+  const [lineOpcodeCategories, setLineOpcodeCategories] = useState<
+    Record<number, string[]>
+  >({});
+
   // Update active trace result when activeTraceId changes
   useEffect(() => {
-    if (!activeTraceId || !currentFileFunctionCallResults || !currentFile) return;
-    
+    if (!activeTraceId || !currentFileFunctionCallResults || !currentFile)
+      return;
+
     const result = currentFileFunctionCallResults.find((r, idx) => {
       const call = filesFunctionCalls[currentFile.id]?.[idx];
-      return call && call.id === activeTraceId;
+      return call && (call as any).id === activeTraceId;
     });
-    
+
     if (result) {
       setActiveTraceResult(result);
-      
+
       // Also update the current function if available
       if (result.call) {
-        const functionName = result.call.split('(')[0];
+        const functionName = result.call.split("(")[0];
         setCurrentFunction(functionName);
       }
     }
-  }, [activeTraceId, currentFileFunctionCallResults, currentFile, filesFunctionCalls]);
-  
+  }, [
+    activeTraceId,
+    currentFileFunctionCallResults,
+    currentFile,
+    filesFunctionCalls,
+  ]);
+
   // Context value
   const value = {
     activeTraceResult,
@@ -71,13 +89,11 @@ export const TracingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     showGasHeatmap,
     setShowGasHeatmap,
     lineExecutionCounts,
-    lineOpcodeCategories
+    lineOpcodeCategories,
   };
-  
+
   return (
-    <TracingContext.Provider value={value}>
-      {children}
-    </TracingContext.Provider>
+    <TracingContext.Provider value={value}>{children}</TracingContext.Provider>
   );
 };
 
@@ -85,7 +101,7 @@ export const TracingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 export const useTracing = () => {
   const context = useContext(TracingContext);
   if (context === undefined) {
-    throw new Error('useTracing must be used within a TracingProvider');
+    throw new Error("useTracing must be used within a TracingProvider");
   }
   return context;
-}; 
+};

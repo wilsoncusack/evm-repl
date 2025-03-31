@@ -13,11 +13,11 @@ interface ResultDisplayProps {
 
 const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
   const { currentFileCompilationResult } = useAppContext();
-  const { 
-    setActiveTraceResult, 
+  const {
+    setActiveTraceResult,
     activeTraceResult,
     setIsTraceDebuggerOpen,
-    isTraceDebuggerOpen
+    isTraceDebuggerOpen,
   } = useTracing();
   const [showTraces, setShowTraces] = useState(false);
   const [showTraceDebugger, setShowTraceDebugger] = useState(false);
@@ -28,38 +28,47 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
   // Toggle this trace in the editor with logging
   const toggleTraceInEditor = () => {
     if (isActiveInEditor) {
-      console.log('Deactivating trace in editor');
+      console.log("Deactivating trace in editor");
       setActiveTraceResult(null);
       setIsTraceDebuggerOpen(false);
     } else {
-      console.log('Activating trace in editor:', result.call);
-      console.log('Source mapping available:', !!result.sourceMapping);
-      
+      console.log("Activating trace in editor:", result.call);
+      console.log("Source mapping available:", !!result.sourceMapping);
+
       // Log some details about the source mapping if available
       if (result.sourceMapping) {
         const { sourceContext } = result.sourceMapping;
-        console.log('Source files:', Object.keys(sourceContext.sourceFiles));
-        console.log('Function mappings:', Object.keys(sourceContext.functionToSteps).join(', '));
-        
+        console.log("Source files:", Object.keys(sourceContext.sourceFiles));
+        console.log(
+          "Function mappings:",
+          Object.keys(sourceContext.functionToSteps).join(", "),
+        );
+
         // Examine full trace for SSTORE operations
-        const allSteps = Object.values(sourceContext.functionToSteps)
-          .flat() as any[];
-        
+        const allSteps = Object.values(
+          sourceContext.functionToSteps,
+        ).flat() as any[];
+
         console.log(`Total execution steps: ${allSteps.length}`);
-        
+
         // Find all SSTORE operations in the trace
-        const sstoreOps = allSteps.filter(step => step.opName === 'SSTORE');
-        console.log(`Found ${sstoreOps.length} SSTORE operations in total:`, sstoreOps);
-        
+        const sstoreOps = allSteps.filter((step) => step.opName === "SSTORE");
+        console.log(
+          `Found ${sstoreOps.length} SSTORE operations in total:`,
+          sstoreOps,
+        );
+
         // Check the line mapping for all steps
         const lineToStepsEntries = Object.entries(sourceContext.lineToSteps);
-        console.log('Line to steps mapping structure:', 
-          lineToStepsEntries.map(([file, lineMap]) => 
-            `${file}: ${Object.keys(lineMap).length} lines mapped`
-          )
+        console.log(
+          "Line to steps mapping structure:",
+          lineToStepsEntries.map(
+            ([file, lineMap]) =>
+              `${file}: ${Object.keys(lineMap).length} lines mapped`,
+          ),
         );
       }
-      
+
       setActiveTraceResult(result);
       setIsTraceDebuggerOpen(true);
     }
@@ -119,9 +128,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
       <div className="flex justify-between items-start">
         <div>
           <h3 className="text-lg font-bold">
-            <span
-              className={`${isReverted ? "text-error" : "text-success"}`}
-            >
+            <span className={`${isReverted ? "text-error" : "text-success"}`}>
               {isReverted ? "Reverted" : "Success"}
             </span>
             <span className="ml-2 text-base font-normal text-primary">
@@ -176,7 +183,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
             </div>
           ))}
       </div>
-      
+
       <div className="mt-4 space-x-2 flex flex-wrap">
         {result.traces && (
           <button
@@ -187,29 +194,31 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result }) => {
             {showTraces ? "Hide Basic Traces" : "Show Basic Traces"}
           </button>
         )}
-        
+
         {result.sourceMapping && (
           <button
             type="button"
             onClick={() => setShowTraceDebugger(!showTraceDebugger)}
             className="px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover transition-colors mb-2"
           >
-            {showTraceDebugger ? "Hide Source Trace Debugger" : "Show Source Trace Debugger"}
+            {showTraceDebugger
+              ? "Hide Source Trace Debugger"
+              : "Show Source Trace Debugger"}
           </button>
         )}
-        
+
         {result.sourceMapping && (
           <button
             type="button"
             onClick={toggleTraceInEditor}
-            className={`px-2 py-1 ${isActiveInEditor ? 'bg-success' : 'bg-accent'} text-white rounded hover:bg-accent-hover transition-colors mb-2`}
+            className={`px-2 py-1 ${isActiveInEditor ? "bg-success" : "bg-accent"} text-white rounded hover:bg-accent-hover transition-colors mb-2`}
           >
             {isActiveInEditor ? "Hide Trace in Editor" : "Show Trace in Editor"}
           </button>
         )}
 
         {showTraces && <TraceDisplay traces={result.traces} />}
-        
+
         {showTraceDebugger && result.sourceMapping && (
           <TraceDebugger result={result} />
         )}

@@ -1,7 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { EnhancedFunctionCallResult, EnhancedTraceStep } from "../types/sourceMapping";
+import {
+  EnhancedFunctionCallResult,
+  EnhancedTraceStep,
+} from "../types/sourceMapping";
 import { useTracing } from "../hooks/useTracing";
 
 interface TraceDebuggerProps {
@@ -13,11 +16,13 @@ interface TraceDebuggerProps {
  */
 const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
   const { setHighlightedLine, setHighlightedStepIndex } = useTracing();
-  const [activeTab, setActiveTab] = useState<'overview' | 'functions' | 'sourceLine' | 'steps'>('overview');
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "functions" | "sourceLine" | "steps"
+  >("overview");
   const [selectedFunction, setSelectedFunction] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
-  
+
   // Clear highlight when component unmounts
   useEffect(() => {
     return () => {
@@ -25,7 +30,7 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
       setHighlightedStepIndex(null);
     };
   }, [setHighlightedLine, setHighlightedStepIndex]);
-  
+
   if (!result.sourceMapping) {
     return (
       <div className="p-4 bg-gray-800 text-red-400 rounded">
@@ -33,11 +38,13 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
       </div>
     );
   }
-  
+
   const { sourceContext, enhancedTraces } = result.sourceMapping;
-  
+
   // Type guard to check if sourceInfo has mappings or is unmapped
-  const isMappedSourceInfo = (sourceInfo: any): sourceInfo is {
+  const isMappedSourceInfo = (
+    sourceInfo: any,
+  ): sourceInfo is {
     filePath: string;
     offset: number;
     length: number;
@@ -51,17 +58,19 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
     isDuplicate?: boolean;
     unmapped?: boolean;
   } => {
-    return sourceInfo && 'line' in sourceInfo && !('unmapped' in sourceInfo);
+    return sourceInfo && "line" in sourceInfo && !("unmapped" in sourceInfo);
   };
-  
+
   // Type guard for unmapped source info
-  const isUnmappedSourceInfo = (sourceInfo: any): sourceInfo is {
+  const isUnmappedSourceInfo = (
+    sourceInfo: any,
+  ): sourceInfo is {
     unmapped: true;
     pc: number;
   } => {
-    return sourceInfo && 'unmapped' in sourceInfo;
+    return sourceInfo && "unmapped" in sourceInfo;
   };
-  
+
   // Handle mouse over for steps - highlight the corresponding source line
   const handleStepMouseEnter = (step: EnhancedTraceStep, index: number) => {
     if (step.sourceInfo && isMappedSourceInfo(step.sourceInfo)) {
@@ -69,41 +78,44 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
       setHighlightedStepIndex(index);
     }
   };
-  
+
   // Handle mouse leave - clear highlight
   const handleStepMouseLeave = () => {
     setHighlightedLine(null);
     setHighlightedStepIndex(null);
   };
-  
+
   const renderOverview = () => (
     <div>
       <h3 className="text-lg font-semibold mb-2">Overview</h3>
-      
+
       <div className="mb-4">
         <h4 className="text-md font-semibold">Source Files:</h4>
         <ul className="list-disc pl-5">
-          {Object.keys(sourceContext.sourceFiles).map(file => (
+          {Object.keys(sourceContext.sourceFiles).map((file) => (
             <li key={file}>
-              {file} ({sourceContext.sourceFiles[file].split('\n').length} lines)
+              {file} ({sourceContext.sourceFiles[file].split("\n").length}{" "}
+              lines)
             </li>
           ))}
         </ul>
       </div>
-      
+
       <div className="mb-4">
         <h4 className="text-md font-semibold">Functions Detected:</h4>
         <ul className="list-disc pl-5">
-          {Object.entries(sourceContext.functionRanges).flatMap(([file, ranges]) => 
-            ranges.map(range => (
-              <li key={`${file}:${range.name}`}>
-                {range.name} in {file} (lines {range.line+1}-{range.endLine+1})
-              </li>
-            ))
+          {Object.entries(sourceContext.functionRanges).flatMap(
+            ([file, ranges]) =>
+              ranges.map((range) => (
+                <li key={`${file}:${range.name}`}>
+                  {range.name} in {file} (lines {range.line + 1}-
+                  {range.endLine + 1})
+                </li>
+              )),
           )}
         </ul>
       </div>
-      
+
       <div className="mb-4">
         <h4 className="text-md font-semibold">Execution Summary:</h4>
         <ul className="list-disc pl-5">
@@ -116,43 +128,54 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
           <li>Response: {result.response}</li>
         </ul>
       </div>
-      
+
       <div className="mb-4">
         <h4 className="text-md font-semibold">Source Map Stats:</h4>
         <ul className="list-disc pl-5">
-          <li>PC to Source Map Size: {sourceContext.pcToSource.size} entries</li>
-          <li>Source Files: {Object.keys(sourceContext.sourceFiles).length} files</li>
-          <li>Functions: {Object.values(sourceContext.functionRanges).flat().length} functions</li>
+          <li>
+            PC to Source Map Size: {sourceContext.pcToSource.size} entries
+          </li>
+          <li>
+            Source Files: {Object.keys(sourceContext.sourceFiles).length} files
+          </li>
+          <li>
+            Functions:{" "}
+            {Object.values(sourceContext.functionRanges).flat().length}{" "}
+            functions
+          </li>
         </ul>
       </div>
     </div>
   );
-  
+
   const renderFunctionView = () => {
     const functionKeys = Object.keys(sourceContext.functionToSteps);
-    
+
     return (
       <div>
         <h3 className="text-lg font-semibold mb-2">Functions</h3>
-        
+
         <div className="mb-4">
-          <select 
+          <select
             className="bg-gray-700 text-white p-2 rounded w-full"
             value={selectedFunction || ""}
             onChange={(e) => setSelectedFunction(e.target.value || null)}
           >
             <option value="">Select a function</option>
-            {functionKeys.map(key => (
+            {functionKeys.map((key) => (
               <option key={key} value={key}>
-                {key.split(':').pop()} ({sourceContext.functionToSteps[key].length} steps)
+                {key.split(":").pop()} (
+                {sourceContext.functionToSteps[key].length} steps)
               </option>
             ))}
           </select>
         </div>
-        
+
         {selectedFunction && (
           <div>
-            <h4 className="text-md font-semibold">Steps in function {selectedFunction.split(':').pop()}:</h4>
+            <h4 className="text-md font-semibold">
+              Steps in function {selectedFunction.split(":").pop()}:
+            </h4>
             <div className="overflow-x-auto mt-2">
               <table className="min-w-full bg-gray-700 text-sm">
                 <thead>
@@ -166,16 +189,28 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {sourceContext.functionToSteps[selectedFunction].map((step, idx) => (
-                    <tr key={idx} className="border-t border-gray-600">
-                      <td className="p-2">{idx}</td>
-                      <td className="p-2">{step.pc}</td>
-                      <td className="p-2 font-mono">{step.opName}</td>
-                      <td className="p-2">{step.gas_used}</td>
-                      <td className="p-2">{step.sourceInfo?.line !== undefined ? step.sourceInfo.line + 1 : 'N/A'}</td>
-                      <td className="p-2 font-mono truncate max-w-xs">{step.sourceInfo?.sourceLine || 'N/A'}</td>
-                    </tr>
-                  ))}
+                  {sourceContext.functionToSteps[selectedFunction].map(
+                    (step, idx) => (
+                      <tr key={idx} className="border-t border-gray-600">
+                        <td className="p-2">{idx}</td>
+                        <td className="p-2">{step.pc}</td>
+                        <td className="p-2 font-mono">{step.opName}</td>
+                        <td className="p-2">{step.gas_used}</td>
+                        <td className="p-2">
+                          {step.sourceInfo &&
+                          isMappedSourceInfo(step.sourceInfo)
+                            ? step.sourceInfo.line + 1
+                            : "N/A"}
+                        </td>
+                        <td className="p-2 font-mono truncate max-w-xs">
+                          {step.sourceInfo &&
+                          isMappedSourceInfo(step.sourceInfo)
+                            ? step.sourceInfo.sourceLine
+                            : "N/A"}
+                        </td>
+                      </tr>
+                    ),
+                  )}
                 </tbody>
               </table>
             </div>
@@ -184,16 +219,16 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
       </div>
     );
   };
-  
+
   const renderSourceLineView = () => {
     const fileKeys = Object.keys(sourceContext.lineToSteps);
-    
+
     return (
       <div>
         <h3 className="text-lg font-semibold mb-2">Source Lines</h3>
-        
+
         <div className="mb-4">
-          <select 
+          <select
             className="bg-gray-700 text-white p-2 rounded w-full mb-2"
             value={selectedFile || ""}
             onChange={(e) => {
@@ -202,37 +237,60 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
             }}
           >
             <option value="">Select a file</option>
-            {fileKeys.map(file => (
-              <option key={file} value={file}>{file}</option>
+            {fileKeys.map((file) => (
+              <option key={file} value={file}>
+                {file}
+              </option>
             ))}
           </select>
-          
+
           {selectedFile && (
-            <select 
+            <select
               className="bg-gray-700 text-white p-2 rounded w-full"
               value={selectedLine !== null ? selectedLine.toString() : ""}
-              onChange={(e) => setSelectedLine(e.target.value ? parseInt(e.target.value) : null)}
+              onChange={(e) =>
+                setSelectedLine(
+                  e.target.value ? parseInt(e.target.value) : null,
+                )
+              }
             >
               <option value="">Select a line</option>
-              {Object.keys(sourceContext.lineToSteps[selectedFile]).map(line => (
-                <option key={line} value={line}>
-                  Line {parseInt(line) + 1} ({sourceContext.lineToSteps[selectedFile][parseInt(line)].length} steps)
-                </option>
-              ))}
+              {Object.keys(sourceContext.lineToSteps[selectedFile]).map(
+                (line) => (
+                  <option key={line} value={line}>
+                    Line {parseInt(line) + 1} (
+                    {
+                      sourceContext.lineToSteps[selectedFile][parseInt(line)]
+                        .length
+                    }{" "}
+                    steps)
+                  </option>
+                ),
+              )}
             </select>
           )}
         </div>
-        
+
         {selectedFile && selectedLine !== null && (
           <div>
             <h4 className="text-md font-semibold">
-              Source: Line {selectedLine + 1} in {selectedFile.split('/').pop()}
+              Source: Line {selectedLine + 1} in {selectedFile.split("/").pop()}
             </h4>
             <pre className="bg-gray-900 p-2 rounded font-mono text-sm overflow-x-auto mt-2">
-              {sourceContext.lineToSteps[selectedFile][selectedLine][0]?.sourceInfo?.sourceLine || 'No source line found'}
+              {(() => {
+                const firstStep =
+                  sourceContext.lineToSteps[selectedFile][selectedLine][0];
+                if (!firstStep || !firstStep.sourceInfo)
+                  return "No source line found";
+                return isMappedSourceInfo(firstStep.sourceInfo)
+                  ? firstStep.sourceInfo.sourceLine
+                  : "No source line found";
+              })()}
             </pre>
-            
-            <h4 className="text-md font-semibold mt-4">Steps executing this line:</h4>
+
+            <h4 className="text-md font-semibold mt-4">
+              Steps executing this line:
+            </h4>
             <div className="overflow-x-auto mt-2">
               <table className="min-w-full bg-gray-700 text-sm">
                 <thead>
@@ -245,15 +303,22 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {sourceContext.lineToSteps[selectedFile][selectedLine].map((step, idx) => (
-                    <tr key={idx} className="border-t border-gray-600">
-                      <td className="p-2">{idx}</td>
-                      <td className="p-2">{step.pc}</td>
-                      <td className="p-2 font-mono">{step.opName}</td>
-                      <td className="p-2">{step.gas_used}</td>
-                      <td className="p-2">{step.sourceInfo?.functionName || 'N/A'}</td>
-                    </tr>
-                  ))}
+                  {sourceContext.lineToSteps[selectedFile][selectedLine].map(
+                    (step, idx) => (
+                      <tr key={idx} className="border-t border-gray-600">
+                        <td className="p-2">{idx}</td>
+                        <td className="p-2">{step.pc}</td>
+                        <td className="p-2 font-mono">{step.opName}</td>
+                        <td className="p-2">{step.gas_used}</td>
+                        <td className="p-2">
+                          {step.sourceInfo &&
+                          isMappedSourceInfo(step.sourceInfo)
+                            ? step.sourceInfo.functionName
+                            : "N/A"}
+                        </td>
+                      </tr>
+                    ),
+                  )}
                 </tbody>
               </table>
             </div>
@@ -262,45 +327,53 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
       </div>
     );
   };
-  
+
   // Add a function to format call hierarchies
   const formatCallInfo = (step: EnhancedTraceStep): string => {
-    if (!step || !step.sourceInfo) return '';
-    
-    const functionName = step.sourceInfo.functionName || 'unknown';
-    
+    if (!step || !step.sourceInfo || !isMappedSourceInfo(step.sourceInfo))
+      return "";
+
+    const functionName = step.sourceInfo.functionName || "unknown";
+
     // Format different types of calls based on opcode
     if (step.opName) {
-      if (step.opName === 'CALL' || step.opName === 'STATICCALL' || step.opName === 'DELEGATECALL') {
+      if (
+        step.opName === "CALL" ||
+        step.opName === "STATICCALL" ||
+        step.opName === "DELEGATECALL"
+      ) {
         return `[${functionName}] => [External Call]`;
       }
-      if (step.opName === 'SLOAD') {
+      if (step.opName === "SLOAD") {
         return `${functionName}[Storage Read]`;
       }
-      if (step.opName === 'SSTORE') {
+      if (step.opName === "SSTORE") {
         return `${functionName}[Storage Write]`;
       }
-      if (step.opName === 'RETURN') {
+      if (step.opName === "RETURN") {
         return `${functionName} => [Return]`;
       }
     }
-    
+
     return functionName;
   };
-  
+
   // Add indentation to calls to show hierarchy
-  const getCallIndentation = (step: EnhancedTraceStep, depth: number): string => {
-    if (!step || depth === 0) return '';
-    
+  const getCallIndentation = (
+    step: EnhancedTraceStep,
+    depth: number,
+  ): string => {
+    if (!step || depth === 0) return "";
+
     // Use different indicators based on the opcode category
-    let indicator = '→';
-    if (step.category === 'CALL') indicator = '⤷';
-    if (step.category === 'STORAGE') indicator = '⇝';
-    if (step.category === 'JUMP') indicator = '↳';
-    
-    return '  '.repeat(depth - 1) + indicator + ' ';
+    let indicator = "→";
+    if (step.category === "CALL") indicator = "⤷";
+    if (step.category === "STORAGE") indicator = "⇝";
+    if (step.category === "JUMP") indicator = "↳";
+
+    return "  ".repeat(depth - 1) + indicator + " ";
   };
-  
+
   // Enhance renderStepsView to show call hierarchies
   const renderStepsView = () => {
     if (!result.sourceMapping) {
@@ -312,20 +385,24 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
       );
     }
 
-    const allSteps = result.traces.arena.flatMap(item => 
-      item.trace.steps || []
-    ).filter(Boolean) as EnhancedTraceStep[];
-    
+    const allSteps = result.traces.arena
+      .flatMap((item) => item.trace.steps || [])
+      .filter(Boolean) as EnhancedTraceStep[];
+
     // Track call depth
     let currentDepth = 0;
     const stepDepths: Record<number, number> = {};
-    
+
     // Analyze steps to determine depth
     allSteps.forEach((step, idx) => {
-      if (step.opName === 'CALL' || step.opName === 'STATICCALL' || step.opName === 'DELEGATECALL') {
+      if (
+        step.opName === "CALL" ||
+        step.opName === "STATICCALL" ||
+        step.opName === "DELEGATECALL"
+      ) {
         stepDepths[idx] = currentDepth;
         currentDepth++;
-      } else if (step.opName === 'RETURN' && currentDepth > 0) {
+      } else if (step.opName === "RETURN" && currentDepth > 0) {
         currentDepth--;
         stepDepths[idx] = currentDepth;
       } else {
@@ -336,7 +413,7 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
     return (
       <div>
         <h3 className="text-lg font-semibold mb-2">All Execution Steps</h3>
-        
+
         <div className="overflow-x-auto mt-2">
           <table className="min-w-full bg-gray-700 text-sm">
             <thead>
@@ -353,23 +430,27 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
             <tbody>
               {allSteps.map((step, idx) => {
                 // Determine if this step is mapped or unmapped
-                const isMapped = step.sourceInfo && isMappedSourceInfo(step.sourceInfo);
-                const isUnmapped = step.sourceInfo && isUnmappedSourceInfo(step.sourceInfo);
-                
+                const isMapped =
+                  step.sourceInfo && isMappedSourceInfo(step.sourceInfo);
+                const isUnmapped =
+                  step.sourceInfo && isUnmappedSourceInfo(step.sourceInfo);
+
                 // Get styles based on the type of source info
                 let rowClasses = `border-t border-gray-600 ${getCategoryClass(step.category)}`;
-                if (isMapped) {
-                  if (step.sourceInfo.isOutOfBounds) rowClasses += ' bg-red-500 bg-opacity-20';
-                  if (step.sourceInfo.isDuplicate) rowClasses += ' bg-yellow-500 bg-opacity-20';
+                if (step.sourceInfo && isMappedSourceInfo(step.sourceInfo)) {
+                  if (step.sourceInfo.isOutOfBounds)
+                    rowClasses += " bg-red-500 bg-opacity-20";
+                  if (step.sourceInfo.isDuplicate)
+                    rowClasses += " bg-yellow-500 bg-opacity-20";
                 } else if (isUnmapped) {
-                  rowClasses += ' bg-gray-500 bg-opacity-20';
+                  rowClasses += " bg-gray-500 bg-opacity-20";
                 }
-                
+
                 const depth = stepDepths[idx] || 0;
-                
+
                 return (
-                  <tr 
-                    key={idx} 
+                  <tr
+                    key={idx}
                     className={rowClasses}
                     onMouseEnter={() => handleStepMouseEnter(step, idx)}
                     onMouseLeave={handleStepMouseLeave}
@@ -379,7 +460,11 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
                     <td className="p-2 font-mono">{step.opName}</td>
                     <td className="p-2">{step.gas_used}</td>
                     <td className="p-2">
-                      {isMapped ? step.sourceInfo.line + 1 : 'N/A'}
+                      {isMapped &&
+                      step.sourceInfo &&
+                      isMappedSourceInfo(step.sourceInfo)
+                        ? step.sourceInfo.line + 1
+                        : "N/A"}
                     </td>
                     <td className="p-2 font-mono truncate max-w-xs">
                       {isMapped ? (
@@ -387,15 +472,23 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
                           {getCallIndentation(step, depth)}
                           {formatCallInfo(step)}
                         </span>
-                      ) : 'N/A'}
+                      ) : (
+                        "N/A"
+                      )}
                     </td>
                     <td className="p-2">
-                      {isMapped && step.sourceInfo.isOutOfBounds && (
-                        <span className="text-red-400">Out of bounds</span>
-                      )}
-                      {isMapped && step.sourceInfo.isDuplicate && (
-                        <span className="text-yellow-400">Duplicate</span>
-                      )}
+                      {isMapped &&
+                        step.sourceInfo &&
+                        isMappedSourceInfo(step.sourceInfo) &&
+                        step.sourceInfo.isOutOfBounds && (
+                          <span className="text-red-400">Out of bounds</span>
+                        )}
+                      {isMapped &&
+                        step.sourceInfo &&
+                        isMappedSourceInfo(step.sourceInfo) &&
+                        step.sourceInfo.isDuplicate && (
+                          <span className="text-yellow-400">Duplicate</span>
+                        )}
                       {isUnmapped && (
                         <span className="text-gray-400">Unmapped</span>
                       )}
@@ -409,12 +502,12 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
       </div>
     );
   };
-  
+
   // Helper functions
   function getTotalSteps(): number {
     let count = 0;
     if (enhancedTraces.arena) {
-      enhancedTraces.arena.forEach(arenaItem => {
+      enhancedTraces.arena.forEach((arenaItem) => {
         if (arenaItem.trace.steps) {
           count += arenaItem.trace.steps.length;
         }
@@ -422,13 +515,13 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
     }
     return count;
   }
-  
+
   function getSourceMappedSteps(): number {
     let count = 0;
     if (enhancedTraces.arena) {
-      enhancedTraces.arena.forEach(arenaItem => {
+      enhancedTraces.arena.forEach((arenaItem) => {
         if (arenaItem.trace.steps) {
-          arenaItem.trace.steps.forEach(step => {
+          arenaItem.trace.steps.forEach((step) => {
             if (step.sourceInfo && !step.sourceInfo.unmapped) {
               count++;
             }
@@ -438,14 +531,18 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
     }
     return count;
   }
-  
+
   function getOutOfBoundsSteps(): number {
     let count = 0;
     if (enhancedTraces.arena) {
-      enhancedTraces.arena.forEach(arenaItem => {
+      enhancedTraces.arena.forEach((arenaItem) => {
         if (arenaItem.trace.steps) {
-          arenaItem.trace.steps.forEach(step => {
-            if (step.sourceInfo?.isOutOfBounds) {
+          arenaItem.trace.steps.forEach((step) => {
+            if (
+              step.sourceInfo &&
+              isMappedSourceInfo(step.sourceInfo) &&
+              step.sourceInfo.isOutOfBounds
+            ) {
               count++;
             }
           });
@@ -454,14 +551,18 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
     }
     return count;
   }
-  
+
   function getDuplicateSteps(): number {
     let count = 0;
     if (enhancedTraces.arena) {
-      enhancedTraces.arena.forEach(arenaItem => {
+      enhancedTraces.arena.forEach((arenaItem) => {
         if (arenaItem.trace.steps) {
-          arenaItem.trace.steps.forEach(step => {
-            if (step.sourceInfo?.isDuplicate) {
+          arenaItem.trace.steps.forEach((step) => {
+            if (
+              step.sourceInfo &&
+              isMappedSourceInfo(step.sourceInfo) &&
+              step.sourceInfo.isDuplicate
+            ) {
               count++;
             }
           });
@@ -470,63 +571,63 @@ const TraceDebugger: React.FC<TraceDebuggerProps> = ({ result }) => {
     }
     return count;
   }
-  
+
   function getCategoryClass(category?: string): string {
     switch (category) {
-      case 'JUMP':
-        return 'bg-purple-900 bg-opacity-30';
-      case 'STORAGE':
-        return 'bg-blue-900 bg-opacity-30';
-      case 'MEMORY':
-        return 'bg-green-900 bg-opacity-30';
-      case 'CALL':
-        return 'bg-yellow-900 bg-opacity-30';
-      case 'FLOW':
-        return 'bg-red-900 bg-opacity-30';
+      case "JUMP":
+        return "bg-purple-900 bg-opacity-30";
+      case "STORAGE":
+        return "bg-blue-900 bg-opacity-30";
+      case "MEMORY":
+        return "bg-green-900 bg-opacity-30";
+      case "CALL":
+        return "bg-yellow-900 bg-opacity-30";
+      case "FLOW":
+        return "bg-red-900 bg-opacity-30";
       default:
-        return '';
+        return "";
     }
   }
-  
+
   return (
     <div className="p-4 bg-gray-800 text-white rounded">
       <h2 className="text-xl font-bold mb-4">Trace Debugger</h2>
-      
+
       <div className="flex mb-4">
         <button
-          className={`px-3 py-1 rounded-l ${activeTab === 'overview' ? 'bg-gray-600' : 'bg-gray-700'}`}
-          onClick={() => setActiveTab('overview')}
+          className={`px-3 py-1 rounded-l ${activeTab === "overview" ? "bg-gray-600" : "bg-gray-700"}`}
+          onClick={() => setActiveTab("overview")}
         >
           Overview
         </button>
         <button
-          className={`px-3 py-1 ${activeTab === 'functions' ? 'bg-gray-600' : 'bg-gray-700'}`}
-          onClick={() => setActiveTab('functions')}
+          className={`px-3 py-1 ${activeTab === "functions" ? "bg-gray-600" : "bg-gray-700"}`}
+          onClick={() => setActiveTab("functions")}
         >
           Functions
         </button>
         <button
-          className={`px-3 py-1 ${activeTab === 'sourceLine' ? 'bg-gray-600' : 'bg-gray-700'}`}
-          onClick={() => setActiveTab('sourceLine')}
+          className={`px-3 py-1 ${activeTab === "sourceLine" ? "bg-gray-600" : "bg-gray-700"}`}
+          onClick={() => setActiveTab("sourceLine")}
         >
           Source Lines
         </button>
         <button
-          className={`px-3 py-1 rounded-r ${activeTab === 'steps' ? 'bg-gray-600' : 'bg-gray-700'}`}
-          onClick={() => setActiveTab('steps')}
+          className={`px-3 py-1 rounded-r ${activeTab === "steps" ? "bg-gray-600" : "bg-gray-700"}`}
+          onClick={() => setActiveTab("steps")}
         >
           All Steps
         </button>
       </div>
-      
+
       <div className="mt-4">
-        {activeTab === 'overview' && renderOverview()}
-        {activeTab === 'functions' && renderFunctionView()}
-        {activeTab === 'sourceLine' && renderSourceLineView()}
-        {activeTab === 'steps' && renderStepsView()}
+        {activeTab === "overview" && renderOverview()}
+        {activeTab === "functions" && renderFunctionView()}
+        {activeTab === "sourceLine" && renderSourceLineView()}
+        {activeTab === "steps" && renderStepsView()}
       </div>
     </div>
   );
 };
 
-export default TraceDebugger; 
+export default TraceDebugger;

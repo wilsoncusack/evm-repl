@@ -102,7 +102,7 @@ pub fn compile(files: &[SolidityFile]) -> Result<CompileResult, eyre::Error> {
     // let mut generated_sources = BTreeMap::new();
 
     // Using the contracts_with_files_and_version iterator method
-     for (file_path, contract_name, contract, _) in
+    for (file_path, contract_name, contract, _) in
         output.output().contracts.contracts_with_files_and_version()
     {
         // Simplified approach: use get_source_map functions directly

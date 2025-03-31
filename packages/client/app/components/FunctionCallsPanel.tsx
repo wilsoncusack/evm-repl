@@ -18,7 +18,7 @@ const FunctionCallsPanel: React.FC = () => {
     forkConfig,
     availableChains,
   } = useAppContext();
-  
+
   const { activeTraceResult } = useTracing();
 
   const functionCalls = useMemo(() => {

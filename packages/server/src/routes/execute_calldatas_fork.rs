@@ -22,11 +22,12 @@ pub async fn execute_calldatas_fork_route(
     println!("Trace mode: {:?}", req.trace_mode);
 
     // Create execution options with the specified trace mode
-    let options = req.trace_mode.as_ref().map(|trace_mode| {
-        crate::gas::ExecutionOptions {
+    let options = req
+        .trace_mode
+        .as_ref()
+        .map(|trace_mode| crate::gas::ExecutionOptions {
             trace_mode: Some(trace_mode.clone()),
-        }
-    });
+        });
 
     let result = execute_calldatas_fork(
         req.bytecode.clone(),

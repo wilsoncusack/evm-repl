@@ -207,7 +207,7 @@ pub async fn execute_calldatas_fork(
                     Some("jump") => TraceMode::Jump,
                     Some("jumpSimple") => TraceMode::JumpSimple,
                     Some("call") => TraceMode::Call,
-                    Some("none") => TraceMode::None, 
+                    Some("none") => TraceMode::None,
                     _ => TraceMode::Jump, // Default to Jump mode for best balance
                 },
                 None => TraceMode::Call, // Default to Jump mode for best balance
@@ -278,10 +278,15 @@ mod tests {
         };
 
         // Execute the calls
-        let results =
-            execute_calldatas_fork(bytecode, address, vec![store_call, retrieve_call], None, None)
-                .await
-                .unwrap();
+        let results = execute_calldatas_fork(
+            bytecode,
+            address,
+            vec![store_call, retrieve_call],
+            None,
+            None,
+        )
+        .await
+        .unwrap();
 
         for (i, result) in results.iter().enumerate() {
             println!("Call {}", i);
