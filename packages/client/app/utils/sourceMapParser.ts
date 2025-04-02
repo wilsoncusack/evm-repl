@@ -446,9 +446,7 @@ export function createPCToSourceMap(
  * @param source Solidity source code
  * @returns Array of function ranges
  */
-export function extractFunctionRanges(
-  source: string,
-): {
+export function extractFunctionRanges(source: string): {
   name: string;
   start: number;
   end: number;
