@@ -24,7 +24,7 @@ const ForkConfigPanel: React.FC = () => {
     if (value === "custom") {
       setForkConfig({
         chainId: undefined,
-        rpcUrl: customRpcUrl || undefined,
+        rpcUrl: customRpcUrl || "",
         blockNumber: blockNumber ? parseInt(blockNumber) : undefined,
       });
     } else {
@@ -100,7 +100,7 @@ const ForkConfigPanel: React.FC = () => {
             <select
               id="chain-select"
               value={
-                forkConfig?.rpcUrl
+                forkConfig?.rpcUrl !== undefined
                   ? "custom"
                   : forkConfig?.chainId?.toString() || "1"
               }
@@ -116,7 +116,7 @@ const ForkConfigPanel: React.FC = () => {
             </select>
           </div>
 
-          {forkConfig?.rpcUrl && (
+          {forkConfig?.rpcUrl !== undefined && (
             <div>
               <label
                 htmlFor="custom-rpc"
